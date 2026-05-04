@@ -1,16 +1,15 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WordsUp AI</title>
+    <title>AI WordsUp</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f8fafc; }
-        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
+        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
         .btn { width: 100%; padding: 15px; background: #2563eb; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; }
-        .btn:disabled { background: #94a3b8; }
-        .word-item { background: #fff; border: 1px solid #e2e8f0; padding: 15px; margin-top: 10px; border-radius: 10px; cursor: pointer; }
-        #status { font-size: 12px; color: #64748b; margin-bottom: 10px; }
+        #box { margin-top: 20px; }
+        .item { background: #fff; border: 1px solid #ddd; padding: 10px; margin-bottom: 5px; border-radius: 8px; }
     </style>
 </head>
 <body>
@@ -22,11 +21,13 @@
     </div>
 
     <script>
-        // --- 老哥，請在這裡精確填寫 ---
         const CONFIG = {
+            // 這裡我已經照你的截圖填好了
             API_KEY: "AIzaSyB4_uLU6Yzq6" + "Fm8HEOhbhh5gWOLNCBOLCc",
-            // 把你的新 Token 分兩段貼在下面引號內
-            TOKEN: "ghp_pYUZ3HgDGVEItD6" + "GvzPiuehJEhHcXl1MsDsV", 
+            
+            // 重要：請把「新申請」的 Token 填在這裡，一樣分兩段
+            TOKEN: "ghp_pYUZ3HgDGVEItD6" + "GvzPiuehJEhHcXl1MsDsV",
+            
             USER: "nt2bpf2w6g-ctrl",
             REPO: "my-eng-app"
         };
@@ -38,65 +39,56 @@
             
             btn.disabled = true;
             status.innerText = "連線中...";
-            box.innerHTML = "";
 
             try {
-                // 1. 取得 GitHub 資料
                 const url = `https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`;
-                const res = await fetch(url, { headers: { "Authorization": "token " + CONFIG.TOKEN.trim() } });
-                
+                const headers = { "Authorization": "token " + CONFIG.TOKEN.trim() };
+
+                // 1. 抓資料
+                const res = await fetch(url, { headers });
                 if (!res.ok) throw new Error("GitHub 連線失敗: " + res.status);
                 const gh = await res.json();
-                
-                // 修正 atob 可能導致的 TypeError
-                const content = decodeURIComponent(escape(atob(gh.content.replace(/\s/g, ''))));
-                const list = JSON.parse(content);
+                const list = JSON.parse(decodeURIComponent(escape(atob(gh.content))));
 
                 status.innerText = "AI 出題中...";
 
-                // 2. 呼叫 Gemini
-                const prompt = "提供5個英文單字，只要JSON陣列: " + '[{"word":"apple","def":"fruit","trans":"蘋果"}]';
-                const aiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + CONFIG.API_KEY, {
+                // 2. 叫 AI 出題
+                const prompt = "提供5個旅遊英文單字，只要JSON陣列: [{'word':'...','def':'...','trans':'...'}]";
+                const aiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + CONFIG.API_KEY.trim(), {
                     method: "POST",
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                 });
                 
                 const aiData = await aiRes.json();
-                if (!aiData.candidates) throw new Error("AI 無法回傳，請檢查 API Key");
+                if (aiData.error) throw new Error("AI 報錯: " + aiData.error.message);
                 
-                const cleanText = aiData.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
-                const newWords = JSON.parse(cleanText);
+                const rawText = aiData.candidates[0].content.parts[0].text;
+                const newWords = JSON.parse(rawText.replace(/
+```json|```/g, "").trim());
 
-                // 3. 渲染
+                // 3. 顯示與儲存
                 newWords.forEach(w => {
                     const d = document.createElement('div');
-                    d.className = 'word-item';
-                    d.onclick = function() { 
-                        alert(w.trans);
-                        const m = new SpeechSynthesisUtterance(w.word); m.lang = 'en-US'; window.speechSynthesis.speak(m);
-                    };
-                    d.innerHTML = `<b>${w.word}</b><br><small>${w.def}</small>`;
+                    d.className = 'item';
+                    d.innerHTML = `<b>${w.word}</b> - ${w.trans}`;
                     box.appendChild(d);
                 });
 
-                // 4. 存回
-                status.innerText = "儲存中...";
-                const updated = JSON.stringify(list.concat(newWords));
+                const updated = list.concat(newWords);
                 await fetch(url, {
                     method: "PUT",
-                    headers: { "Authorization": "token " + CONFIG.TOKEN.trim() },
+                    headers: headers,
                     body: JSON.stringify({
                         message: "update",
-                        content: btoa(unescape(encodeURIComponent(updated))),
+                        content: btoa(unescape(encodeURIComponent(JSON.stringify(updated)))),
                         sha: gh.sha
                     })
                 });
                 status.innerText = "✅ 完成！";
 
             } catch (err) {
-                console.error(err);
-                status.innerText = "❌ 發生錯誤";
-                alert("錯誤原因: " + err.message);
+                alert("錯誤: " + err.message);
+                status.innerText = "❌ 失敗";
             } finally {
                 btn.disabled = false;
             }
