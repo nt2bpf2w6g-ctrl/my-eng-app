@@ -1,31 +1,51 @@
-<script>
-    async function check() {
-        const out = document.getElementById('out');
-        try {
-            const CONFIG = {
-                API_KEY: "AIzaSyCEo2jDn_RPHaXjMvau" + "Um4XHqCOgRMnSow",
-                // 請在此填入新 Token (注意引號要是直的)
-                TOKEN: "ghp_o5BuUUXNi9TaIQzR" + "K87YM6acDm0FPM00QEOM",
-                USER: "nt2bpf2w6g-ctrl",
-                REPO: "my-eng-app"
-            };
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WordsUp Debug</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 50px; background: #f8fafc; }
+        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🛠️ 系統診斷中</h1>
+        <div id="status">讀取中...</div>
+        <button onclick="check()" style="padding:10px 20px; margin-top:20px;">測試按鈕</button>
+    </div>
 
-            out.innerText = "🔍 正在測試 GitHub 連線...";
-            const res = await fetch(`https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`, {
-                headers: { "Authorization": "token " + CONFIG.TOKEN.trim() }
-            });
-            
-            if (res.ok) {
-                out.innerText = "✅ GitHub 通了！現在測試 AI...";
-                // 測試 AI
-                const ai = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + CONFIG.API_KEY);
-                const aiData = await ai.json();
-                out.innerText = aiData.error ? "❌ AI 報錯：" + aiData.error.message : "🚀 全部成功！";
-            } else {
-                out.innerText = "❌ GitHub 拒絕連線 (錯誤碼:" + res.status + ")";
+    <script>
+        // 設定區域
+        const CONFIG = {
+            API_KEY: "AIzaSyCEo2jDn_RPHaXj" + "MvauUm4XHqCOgRMnSow",
+            TOKEN: "ghp_o5BuUUXNi9TaIQzRK87Y" + "M6acDm0FPM00QEOM",
+            USER: "nt2bpf2w6g-ctrl",
+            REPO: "my-eng-app"
+        };
+
+        // 初始化檢查
+        window.onload = function() {
+            document.getElementById('status').innerText = "✅ 代碼結構正確，請點擊測試按鈕。";
+        };
+
+        async function check() {
+            const status = document.getElementById('status');
+            status.innerText = "⏳ 正在測試連線...";
+            try {
+                const res = await fetch(`https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`, {
+                    headers: { "Authorization": "token " + CONFIG.TOKEN.replace(/\s/g, '') }
+                });
+                if (res.ok) {
+                    status.innerText = "🚀 GitHub 連線成功！";
+                } else {
+                    status.innerText = "❌ 連線失敗：" + res.status;
+                }
+            } catch (e) {
+                status.innerText = "❌ 錯誤：" + e.message;
             }
-        } catch (e) {
-            out.innerText = "❌ 徹底連不上！原因：" + e.name + " (" + e.message + ")";
         }
-    }
-</script>
+    </script>
+</body>
+</html>
