@@ -23,7 +23,7 @@
 
     <script>
         const CONFIG = {
-            API_KEY: "AIzaSyCEo2jDn_RPHaXj" + "MvauUm4XHqCOgRMnSow",
+           API_KEY: "AIzaSyCEo2jDn_RPHaXj" + "MvauUm4XHqCOgRMnSow",
             TOKEN: "ghp_o5BuUUXNi9TaIQzRK87Y" + "M6acDm0FPM00QEOM",
             USER: "nt2bpf2w6g-ctrl",
             REPO: "my-eng-app"
@@ -33,44 +33,46 @@
             const btn = document.getElementById('runBtn');
             const st = document.getElementById('st');
             const box = document.getElementById('display');
+
             btn.disabled = true;
             box.innerHTML = '';
             st.innerText = "⏳ 正在處理中...";
 
             try {
                 // 1. 取得 GitHub 檔案
+                st.innerText = "📡 連線 GitHub...";
                 const url = `https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`;
                 const headers = {
                     "Authorization": "token " + CONFIG.TOKEN.trim(),
                     "Content-Type": "application/json"
                 };
+
                 const res = await fetch(url, { headers });
-                if (!res.ok) throw new Error("GitHub 連線失敗：" + res.status);
+                if (!res.ok) throw new Error("GitHub 失敗：" + res.status);
 
                 const gh = await res.json();
                 const list = JSON.parse(decodeURIComponent(escape(atob(gh.content.replace(/\n/g, '')))));
 
                 // 2. 呼叫 Gemini AI
-                st.innerText = "🤖 AI 正在生產單字...";
+                st.innerText = "🤖 AI 生產單字中...";
                 const aiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + CONFIG.API_KEY, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         contents: [{
                             parts: [{
-                                text: "提供5個常用旅遊英文單字，只回傳純JSON陣列不要任何說明或代碼區塊，格式：[{\"word\":\"...\",\"def\":\"...\",\"trans\":\"...\"}]"
+                                text: 'Give me 5 travel English words. Reply ONLY a JSON array, no explanation, no markdown. Format: [{"word":"hello","def":"a greeting","trans":"你好"}]'
                             }]
                         }]
                     })
                 });
-                if (!aiRes.ok) throw new Error("AI 連線失敗：" + aiRes.status);
+                if (!aiRes.ok) throw new Error("AI 失敗：" + aiRes.status);
 
                 const aiData = await aiRes.json();
                 const raw = aiData.candidates[0].content.parts[0].text;
                 const match = raw.match(/\[[\s\S]*\]/);
-                if (!match) throw new Error("AI 回傳格式錯誤：" + raw.substring(0, 100));
+                if (!match) throw new Error("AI格式錯誤：" + raw.substring(0, 80));
                 const newWords = JSON.parse(match[0]);
-                const newWords = JSON.parse(rawText);
 
                 // 3. 顯示結果
                 newWords.forEach(w => {
@@ -80,8 +82,8 @@
                     box.prepend(d);
                 });
 
-                // 4. 同步回 GitHub
-                st.innerText = "💾 正在儲存...";
+                // 4. 儲存回 GitHub
+                st.innerText = "💾 儲存中...";
                 const updated = list.concat(newWords);
                 const putRes = await fetch(url, {
                     method: "PUT",
@@ -97,11 +99,11 @@
                 st.innerText = "✅ 完成！共 " + updated.length + " 個單字";
 
             } catch (e) {
-                st.innerText = "❌ 失敗：" + e.message;
-                box.innerHTML = '<div class="card" style="color:red;word-break:break-all;">錯誤詳情：' + e.message + '</div>';
-            } finally {
-                btn.disabled = false;
+                st.innerText = "❌ " + e.message;
+                box.innerHTML = '<div class="card" style="color:red;word-break:break-all;">' + e.message + '</div>';
             }
+
+            btn.disabled = false;
         }
     </script>
 </body>
