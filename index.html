@@ -1,112 +1,102 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 單字教練</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WordsUp AI</title>
     <style>
-        :root { --p: #2563eb; --bg: #f8fafc; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; margin: 0; }
-        .container { width: 100%; max-width: 400px; text-align: center; }
-        h1 { color: var(--p); font-size: 26px; margin-bottom: 5px; }
-        #status { font-size: 13px; color: #64748b; margin-bottom: 20px; height: 1.2em; }
-        .btn { width: 100%; padding: 16px; background: var(--p); color: white; border: none; border-radius: 15px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.2); transition: 0.2s; }
-        .btn:active { transform: scale(0.98); opacity: 0.9; }
-        .btn:disabled { background: #cbd5e1; box-shadow: none; }
-        .card { background: white; padding: 25px; border-radius: 20px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); border: 1px solid #e2e8f0; animation: slideUp 0.4s ease-out; cursor: pointer; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .word { font-size: 28px; font-weight: 800; color: #0f172a; margin-bottom: 5px; }
-        .def { font-size: 14px; color: #64748b; line-height: 1.4; }
-        .trans { margin-top: 15px; padding-top: 15px; color: #059669; font-size: 20px; font-weight: bold; border-top: 1px dashed #e2e8f0; display: none; }
-        .hint { font-size: 11px; color: #cbd5e1; margin-top: 10px; }
+        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f8fafc; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
+        .btn { width: 100%; padding: 15px; background: #2563eb; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        .btn:disabled { background: #94a3b8; }
+        .word-item { background: #fff; border: 1px solid #e2e8f0; padding: 15px; margin-top: 10px; border-radius: 10px; cursor: pointer; }
+        #status { font-size: 12px; color: #64748b; margin-bottom: 10px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🌍 AI WordsUp</h1>
-        <div id="status">準備好學習新單字了嗎？</div>
-        <button class="btn" id="runBtn" onclick="startApp()">生產 5 個新字卡</button>
-        <div id="display" style="margin-top:20px;"></div>
+    <div class="card">
+        <h2>🌍 AI 英文教練</h2>
+        <div id="status">準備就緒</div>
+        <button id="runBtn" class="btn" onclick="go()">開始生產單字</button>
+        <div id="box"></div>
     </div>
 
     <script>
-        // --- 核心設定區 (已為老哥填好) ---
+        // --- 老哥，請在這裡精確填寫 ---
         const CONFIG = {
-            API_KEY: "AIzaSyCX8" + "1ohv8BaviqcbaUGO0DWQsO7MC9X2NA", 
-            
-            // 重要：請在此處分段填入你「新申請」的 Token
-            // 範例：TOKEN: "ghp_ABC" + "DEF" + "GHI",
-            TOKEN: "這裡填新Token開頭" + "這裡填中間" + "這裡填結尾",
-            
+            API_KEY: "AIzaSyCX8" + "1ohv8BaviqcbaUGO0DWQsO7MC9X2NA",
+            // 把你的新 Token 分兩段貼在下面引號內
+            TOKEN: "新Token前半" + "新Token後半", 
             USER: "nt2bpf2w6g-ctrl",
             REPO: "my-eng-app"
         };
 
-        async function startApp() {
-            const btn = document.getElementById('runBtn');
+        async function go() {
             const status = document.getElementById('status');
-            const display = document.getElementById('display');
+            const box = document.getElementById('box');
+            const btn = document.getElementById('runBtn');
             
             btn.disabled = true;
-            status.innerText = "⏳ 正在連線 GitHub 資料庫...";
-            display.innerHTML = "";
+            status.innerText = "連線中...";
+            box.innerHTML = "";
 
             try {
+                // 1. 取得 GitHub 資料
                 const url = `https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`;
-                const headers = { "Authorization": `token ${CONFIG.TOKEN.replace(/\s/g, '')}`, "Accept": "application/vnd.github.v3+json" };
-
-                // 1. 抓取舊資料
-                const res = await fetch(url, { headers });
-                if (!res.ok) throw new Error(`GitHub 連線失敗(${res.status})，請確認新 Token 是否正確填寫。`);
-
+                const res = await fetch(url, { headers: { "Authorization": "token " + CONFIG.TOKEN.trim() } });
+                
+                if (!res.ok) throw new Error("GitHub 連線失敗: " + res.status);
                 const gh = await res.json();
-                const list = JSON.parse(decodeURIComponent(escape(atob(gh.content))));
-                status.innerText = "🤖 AI 正在選取旅遊高頻單字...";
+                
+                // 修正 atob 可能導致的 TypeError
+                const content = decodeURIComponent(escape(atob(gh.content.replace(/\s/g, ''))));
+                const list = JSON.parse(content);
 
-                // 2. 呼叫 AI
-                const prompt = `提供5個成人旅遊英文單字，避開[${list.map(i=>i.word).join(',')}], 只回傳JSON陣列: [{"word":"...","def":"...","trans":"..."}]`;
-                const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.API_KEY}`, {
+                status.innerText = "AI 出題中...";
+
+                // 2. 呼叫 Gemini
+                const prompt = "提供5個英文單字，只要JSON陣列: " + '[{"word":"apple","def":"fruit","trans":"蘋果"}]';
+                const aiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + CONFIG.API_KEY, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                 });
                 
                 const aiData = await aiRes.json();
-                const newWords = JSON.parse(aiData.candidates[0].content.parts[0].text.replace(/```json|```/g, ""));
+                if (!aiData.candidates) throw new Error("AI 無法回傳，請檢查 API Key");
+                
+                const cleanText = aiData.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
+                const newWords = JSON.parse(cleanText);
 
-                // 3. 渲染字卡
+                // 3. 渲染
                 newWords.forEach(w => {
-                    const card = document.createElement('div');
-                    card.className = 'card';
-                    card.onclick = function() {
-                        this.querySelector('.trans').style.display = 'block';
-                        this.querySelector('.hint').style.display = 'none';
-                        window.speechSynthesis.cancel();
+                    const d = document.createElement('div');
+                    d.className = 'word-item';
+                    d.onclick = function() { 
+                        alert(w.trans);
                         const m = new SpeechSynthesisUtterance(w.word); m.lang = 'en-US'; window.speechSynthesis.speak(m);
                     };
-                    card.innerHTML = `<div class="word">${w.word} 🔊</div><div class="def">${w.def}</div><div class="trans">${w.trans}</div><div class="hint">點擊發音並查看翻譯</div>`;
-                    display.appendChild(card);
+                    d.innerHTML = `<b>${w.word}</b><br><small>${w.def}</small>`;
+                    box.appendChild(d);
                 });
 
-                // 4. 回傳儲存
-                status.innerText = "💾 正在同步學習進度...";
-                const updated = list.concat(newWords);
-                const putRes = await fetch(url, {
+                // 4. 存回
+                status.innerText = "儲存中...";
+                const updated = JSON.stringify(list.concat(newWords));
+                await fetch(url, {
                     method: "PUT",
-                    headers: headers,
+                    headers: { "Authorization": "token " + CONFIG.TOKEN.trim() },
                     body: JSON.stringify({
-                        message: "Sync New Words",
-                        content: btoa(unescape(encodeURIComponent(JSON.stringify(updated)))),
+                        message: "update",
+                        content: btoa(unescape(encodeURIComponent(updated))),
                         sha: gh.sha
                     })
                 });
+                status.innerText = "✅ 完成！";
 
-                if (!putRes.ok) throw new Error("存檔失敗，請確認 Token 權限。");
-                status.innerText = "✅ 單字生產完畢！點擊卡片開始練習。";
-
-            } catch (e) {
-                alert("❌ 操作失敗：\n" + e.message);
+            } catch (err) {
+                console.error(err);
                 status.innerText = "❌ 發生錯誤";
+                alert("錯誤原因: " + err.message);
             } finally {
                 btn.disabled = false;
             }
