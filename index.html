@@ -2,28 +2,25 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI WordsUp</title>
     <style>
-        body { font-family: system-ui, sans-serif; background: #f1f5f9; display: flex; justify-content: center; padding: 20px; margin: 0; }
-        .container { width: 100%; max-width: 400px; text-align: center; }
-        .btn { width: 100%; padding: 18px; background: #2563eb; color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.2); }
-        .btn:disabled { background: #cbd5e1; box-shadow: none; }
-        .card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 12px; border: 1px solid #e2e8f0; text-align: left; }
-        .word { font-size: 22px; font-weight: bold; color: #1e293b; display: flex; justify-content: space-between; align-items: center; }
-        .trans { margin-top: 8px; color: #059669; font-weight: bold; }
-        #st { margin: 10px 0; font-size: 14px; color: #64748b; }
+        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f1f5f9; }
+        .btn { width: 100%; max-width: 300px; padding: 20px; background: #2563eb; color: white; border-radius: 15px; font-weight: bold; border: none; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🌍 AI WordsUp</h1>
-        <div id="st">路徑已全數連通 ✅</div>
-        <button class="btn" id="runBtn" onclick="main()">生產 5 個新單字</button>
-        <div id="display" style="margin-top:20px;"></div>
-    </div>
+    <h1>🌍 AI WordsUp</h1>
+    <div id="st">正在啟動偵測器...</div>
+    <button class="btn" id="runBtn" onclick="main()">生產新單字</button>
+    <div id="display" style="margin-top:20px;"></div>
 
     <script>
+        // 1. 自動偵測結構是否正確
+        window.onload = function() {
+            document.getElementById('st').innerText = "✅ 系統載入成功，請點擊按鈕！";
+        };
+
         const CONFIG = {
             API_KEY:"AIzaSyCEo2jDn_RPHaXj" + "MvauUm4XHqCOgRMnSow",
             TOKEN:"ghp_o5BuUUXNi9TaIQzRK87Y" + "M6acDm0FPM00QEOM",
@@ -35,18 +32,19 @@
             const btn = document.getElementById('runBtn');
             const st = document.getElementById('st');
             const box = document.getElementById('display');
+            
             btn.disabled = true;
-            st.innerText = "⏳ AI 正在思考單字...";
+            st.innerText = "⏳ 正在與 AI 通訊...";
 
             try {
-                // 1. 抓取舊資料
+                // 讀取 GitHub
                 const url = `https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`;
                 const headers = { "Authorization": "token " + CONFIG.TOKEN.trim() };
                 const res = await fetch(url, { headers });
                 const gh = await res.json();
                 const list = JSON.parse(decodeURIComponent(escape(atob(gh.content))));
 
-                // 2. 呼叫 AI (跟剛才測試連通的邏輯一模一樣)
+                // 呼叫 AI
                 const prompt = "提供5個英文單字，只要JSON陣列: [{'word':'...','def':'...','trans':'...'}]";
                 const aiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + CONFIG.API_KEY, {
                     method: "POST",
@@ -55,20 +53,19 @@
                 });
                 
                 const aiData = await aiRes.json();
-                const rawText = aiData.candidates[0].content.parts[0].text.replace(/```json|
-```/g, "").trim();
+                const rawText = aiData.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
                 const newWords = JSON.parse(rawText);
 
-                // 3. 顯示結果
+                // 顯示介面
                 newWords.forEach(w => {
                     const d = document.createElement('div');
-                    d.className = 'card';
-                    d.innerHTML = `<div class="word">${w.word}</div><div style="color:#64748b;font-size:14px">${w.def}</div><div class="trans">${w.trans}</div>`;
+                    d.style = "background:white; padding:15px; margin-bottom:10px; border-radius:10px; text-align:left; border:1px solid #ddd;";
+                    d.innerHTML = `<b>${w.word}</b><br><small>${w.trans}</small>`;
                     box.prepend(d);
                 });
 
-                // 4. 同步回 GitHub
-                st.innerText = "💾 正在儲存進度...";
+                // 存回 GitHub
+                st.innerText = "💾 正在同步...";
                 const updated = list.concat(newWords);
                 await fetch(url, {
                     method: "PUT",
@@ -80,6 +77,7 @@
                     })
                 });
                 st.innerText = "✅ 完成！";
+
             } catch (e) {
                 alert("錯誤：" + e.message);
                 st.innerText = "❌ 失敗";
@@ -87,6 +85,6 @@
                 btn.disabled = false;
             }
         }
-</script>
+    </script>
 </body>
 </html>
