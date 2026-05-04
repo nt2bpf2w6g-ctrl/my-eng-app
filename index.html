@@ -61,14 +61,24 @@
         <div id="quizContainer"></div>
     </div>
 
-    <script>
-        // --- 請務必填寫正確的 Key 與帳號 ---
+        <script>
+        // --- 這裡就是 CONFIG 設定區，請精確填入引號內 ---
         const CONFIG = {
-            API_KEY: "AIzaSyCX81ohv8BaviqcbaUGO0DWQsO7MC9X2NA",
-            TOKEN: "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", // 必須勾選 repo
-            USER: "nt2bpf2w6g-ctrl", // 注意大小寫
-            REPO: "my-eng-app"
+            // 1. 填入你的 Gemini API Key
+            API_KEY: "AIzaSyCX81ohv8BaviqcbaUGO0DWQsO7MC9X2NA".trim(), 
+            
+            // 2. 填入你剛剛申請的 Classic Token (ghp_ 開頭)
+            TOKEN: "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".trim(), 
+            
+            // 3. 你的 GitHub 帳號名稱 (請注意大小寫要跟網頁左上角一模一樣！)
+            USER: "nt2bpf2w6g-ctrl".trim(), 
+            
+            // 4. 你的專案名稱
+            REPO: "my-eng-app".trim()
         };
+
+    
+
 
         async function generateAI() {
     const btn = document.getElementById('genBtn');
