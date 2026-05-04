@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 英文助手</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f8f9fa; display: flex; justify-content: center; padding: 20px; }
+        .card { background: white; width: 100%; max-width: 400px; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; }
+        input { width: 85%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 12px; font-size: 16px; outline: none; }
+        button { width: 45%; padding: 12px; border-radius: 12px; border: none; background: #1a73e8; color: white; cursor: pointer; margin: 5px; font-weight: bold; }
+        #status { font-size: 12px; color: #888; margin: 10px 0; height: 15px; }
+        hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
+        #qWord { font-size: 32px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h3>🚀 AI 智能存詞練習</h3>
+        <input type="text" id="wordInput" placeholder="輸入單字...">
+        <button onclick="saveWord()">AI 存入</button>
+        <div id="status"></div>
+        <hr>
+        <button style="background: #34a853" onclick="nextQuiz()">隨機測驗</button>
+        <h1 id="qWord">---</h1>
+        <p id="qDef" style="color:#666"></p>
+        <h3 id="qTrans" style="color:#28a745; display:none"></h3>
+        <button id="showBtn" style="display:none; background:#6c757d" onclick="document.getElementById('qTrans').style.display='block'">看答案</button>
+    </div>
+
+    <script>
+        // --- 填寫區 (Private Repo 直接填沒問題) ---
+        const CONFIG = {
+            GEMINI_KEY: "AIzaSyCX81ohv8BaviqcbaUGO0DWQsO7MC9X2NA",
+            GH_TOKEN: " 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 ",
+            GH_USER: "nt2bpf2w6g-ctrl",
+            GH_REPO: "my-eng-app"
+        };
+
+        async function saveWord() {
+            const word = document.getElementById('wordInput').value.trim();
+            const status = document.getElementById('status');
+            if(!word) return;
+            status.innerText = "AI 生成中...";
+            try {
+                // 1. AI 生成
+                const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.GEMINI_KEY}`, {
+                    method: "POST",
+                    body: JSON.stringify({contents: [{parts: [{text: `單字 "${word}"，回傳JSON(不要Markdown): {"word":"${word}","def":"英文解釋","trans":"中文翻譯"}`}]}]})
+                });
+                const aiData = await aiRes.json();
+                const newWord = JSON.parse(aiData.candidates[0].content.parts[0].text);
+
+                // 2. 寫入 GitHub
+                status.innerText = "寫入雲端中...";
+                const url = `https://api.github.com/repos/${CONFIG.GH_USER}/${CONFIG.GH_REPO}/contents/words.json`;
+                const ghGet = await fetch(url, { headers: { Authorization: `token ${CONFIG.GH_TOKEN}` } });
+                const ghData = await ghGet.json();
+                const content = JSON.parse(atob(ghData.content));
+                
+                content.push(newWord);
+                await fetch(url, {
+                    method: "PUT",
+                    headers: { Authorization: `token ${CONFIG.GH_TOKEN}` },
+                    body: JSON.stringify({
+                        message: `Add ${word}`,
+                        content: btoa(unescape(encodeURIComponent(JSON.stringify(content, null, 2)))),
+                        sha: ghData.sha
+                    })
+                });
+                status.innerText = "✅ 已存入！";
+                document.getElementById('wordInput').value = "";
+            } catch (e) { status.innerText = "❌ 失敗，檢查金鑰或網路"; }
+        }
+
+        async function nextQuiz() {
+            const res = await fetch(`https://raw.githubusercontent.com/${CONFIG.GH_USER}/${CONFIG.GH_REPO}/main/words.json?t=${Date.now()}`, {
+                headers: { Authorization: `token ${CONFIG.GH_TOKEN}` }
+            });
+            const data = await res.json();
+            if(!data.length) return alert("還沒存單字喔！");
+            const item = data[Math.floor(Math.random() * data.length)];
+            document.getElementById('qWord').innerText = item.word;
+            document.getElementById('qDef').innerText = item.def;
+            document.getElementById('qTrans').innerText = item.trans;
+            document.getElementById('qTrans').style.display = 'none';
+            document.getElementById('showBtn').style.display = 'inline-block';
+        }
+    </script>
+</body>
+</html>
