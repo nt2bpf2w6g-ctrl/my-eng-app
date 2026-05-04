@@ -3,84 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI WordsUp | 智能成人英文</title>
+    <title>AI WordsUp | 智能學習</title>
     <style>
         :root {
             --primary: #2563eb;
             --bg: #f8fafc;
             --card-bg: #ffffff;
-            --text-main: #1e293b;
+            --text-main: #0f172a;
             --text-sub: #64748b;
-            --accent: #f59e0b;
+            --success: #10b981;
         }
-        body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text-main); display: flex; justify-content: center; margin: 0; padding: 20px; }
+        body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text-main); display: flex; justify-content: center; margin: 0; padding: 20px; -webkit-tap-highlight-color: transparent; }
         .container { width: 100%; max-width: 450px; }
         
-        /* 標題與狀態 */
-        .header { text-align: center; margin-bottom: 30px; margin-top: 20px; }
-        .header h1 { font-size: 32px; margin: 0; color: var(--primary); font-weight: 800; letter-spacing: -1.5px; }
+        /* Header */
+        .header { text-align: center; margin: 30px 0; }
+        .header h1 { font-size: 36px; margin: 0; color: var(--primary); font-weight: 800; letter-spacing: -1.5px; }
         #status { font-size: 13px; color: var(--text-sub); margin-top: 10px; min-height: 20px; font-weight: 500; }
 
-        /* 主按鈕 */
+        /* Main Button */
         .btn-main { 
-            width: 100%; background: var(--primary); color: white; padding: 16px; 
-            border-radius: 16px; border: none; font-weight: 700; font-size: 16px; 
+            width: 100%; background: var(--primary); color: white; padding: 18px; 
+            border-radius: 18px; border: none; font-weight: 700; font-size: 17px; 
             cursor: pointer; transition: all 0.2s; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2);
             margin-bottom: 25px;
         }
-        .btn-main:active { transform: scale(0.98); box-shadow: none; }
-        .btn-main:disabled { background: #cbd5e1; box-shadow: none; }
+        .btn-main:active { transform: scale(0.97); box-shadow: none; }
+        .btn-main:disabled { background: #cbd5e1; box-shadow: none; opacity: 0.7; }
 
-        /* 單字卡片區 */
+        /* Card Styles */
         .quiz-item { 
-            background: var(--card-bg); padding: 24px; border-radius: 20px; 
-            margin-bottom: 18px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.06);
+            background: var(--card-bg); padding: 24px; border-radius: 24px; 
+            margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);
             border: 1px solid rgba(226, 232, 240, 0.8);
-            animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0;
-            cursor: pointer; position: relative;
+            animation: cardSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0;
+            cursor: pointer;
         }
-        @keyframes slideUp {
-            from { transform: translateY(30px); opacity: 0; }
+        @keyframes cardSlideIn {
+            from { transform: translateY(40px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
-        .word-row { display: flex; justify-content: space-between; align-items: center; }
-        .word-text { font-size: 28px; font-weight: 800; color: #0f172a; margin: 0; }
-        .speaker-icon { font-size: 20px; color: var(--primary); }
-        .word-def { font-size: 15px; color: var(--text-sub); margin: 12px 0; line-height: 1.6; }
-        
-        /* 答案區 */
+        .word-header { display: flex; justify-content: space-between; align-items: center; }
+        .word-text { font-size: 30px; font-weight: 800; color: var(--text-main); margin: 0; }
+        .speaker { color: var(--primary); font-size: 22px; }
+        .word-def { font-size: 16px; color: var(--text-sub); margin: 12px 0; line-height: 1.6; }
         .word-ans { 
             margin-top: 15px; padding-top: 15px; border-top: 1px dashed #e2e8f0; 
-            color: #059669; font-weight: 700; display: none; font-size: 17px;
+            color: var(--success); font-weight: 700; display: none; font-size: 18px;
         }
 
-        /* 控制按鈕 */
-        .controls { display: flex; gap: 10px; margin-top: 10px; }
-        .btn-sub { flex: 1; background: #334155; color: white; padding: 12px; border-radius: 12px; border: none; font-weight: 600; display: none; }
+        /* Show Answers Button */
+        #showAllBtn { 
+            width: 100%; background: #1e293b; color: white; padding: 14px; 
+            border-radius: 14px; border: none; font-weight: 600; font-size: 15px;
+            display: none; margin-bottom: 40px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>WordsUp AI</h1>
-            <div id="status">Ready to level up your English?</div>
+            <div id="status">準備好學習新單字了嗎？</div>
         </div>
 
-        <button class="btn-main" id="genBtn" onclick="generateAI()">生產 5 個新題目</button>
+        <button class="btn-main" id="genBtn" onclick="generateAI()">生產 5 個成人/旅遊單字</button>
 
         <div id="quizContainer"></div>
-        
-        <div class="controls">
-            <button id="showAllBtn" class="btn-sub" onclick="showAnswers()">翻開答案</button>
-        </div>
+        <button id="showAllBtn" onclick="showAnswers()">翻開所有答案</button>
     </div>
 
     <script>
-        // --- 請在此填入你的正確資訊 ---
+        // --- 核心設定 (請務必檢查這四項) ---
         const CONFIG = {
-            GEMINI_KEY: "AIzaSyCX81ohv8BaviqcbaUGO0DWQsO7MC9X2NA",
-            GH_TOKEN:"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",
-            GH_USER: "nt2bpf2w6g-ctrl",
+            GEMINI_KEY: "這裡貼上你的_Gemini_Key",
+            GH_TOKEN: "這裡貼上你的_GitHub_Token", // 確保勾選 repo 權限
+            GH_USER: "這裡填你的_GitHub_帳號",
             GH_REPO: "my-eng-app"
         };
 
@@ -90,22 +88,29 @@
             const btn = document.getElementById('genBtn');
             
             btn.disabled = true;
-            status.innerText = "🔍 正在聯網搜尋並不重複出題...";
+            status.style.color = "var(--text-sub)";
+            status.innerText = "正在檢查雲端資料庫並搜尋題目...";
             container.innerHTML = "";
             document.getElementById('showAllBtn').style.display = 'none';
 
             try {
-                // 1. 抓取舊資料庫內容 (防重複)
+                // 1. 抓取舊資料 (診斷讀取)
                 const url = `https://api.github.com/repos/${CONFIG.GH_USER}/${CONFIG.GH_REPO}/contents/words.json`;
                 const getRes = await fetch(url, { headers: { Authorization: `token ${CONFIG.GH_TOKEN}` } });
+                
+                if (getRes.status === 401) throw new Error("Token 錯誤！請檢查是否貼錯或過期");
+                if (getRes.status === 404) throw new Error("找不到檔案！請檢查帳號與 Repo 名稱");
+
                 const ghData = await getRes.json();
                 const currentList = JSON.parse(atob(ghData.content));
                 const blackList = currentList.map(i => i.word).join(', ');
 
-                // 2. 呼叫 AI (設定為成人/旅遊/生活主題)
-                const prompt = `你是一位精通 NLP 的成人英文老師。請參考 Oxford 3000 與多益詞庫，隨機提供 5 個適合成人出國旅遊、社交或生活的高頻單字。
-                **絕對不要出現名單內的字**: [${blackList}]。
-                回傳格式(不要Markdown): [{"word":"...","def":"英文解釋","trans":"中文翻譯"}]`;
+                status.innerText = "🧠 AI 正在規劃不重複的單字...";
+
+                // 2. 呼叫 AI (診斷 Gemini)
+                const prompt = `你是精通多益與生活英語的老師。請提供 5 個適合「成人旅遊、社交、飯店或職場」的高頻單字。
+                不可重複名單中的字: [${blackList}]。
+                回傳 JSON 格式(不要Markdown標籤): [{"word":"...","def":"英文解釋","trans":"中文翻譯"}]`;
 
                 const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.GEMINI_KEY}`, {
                     method: "POST",
@@ -113,32 +118,41 @@
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                 });
                 
+                if (!aiRes.ok) throw new Error("Gemini API Key 效期或權限錯誤");
+
                 const aiData = await aiRes.json();
-                const cleanJson = aiData.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
+                const cleanJson = aiData.candidates[0].content.parts[0].text.replace(/```json|
+```/g, "").trim();
                 const newWords = JSON.parse(cleanJson);
 
-                // 3. 顯示卡片 (帶有延遲動畫)
+                // 3. 顯示卡片
                 newWords.forEach((item, index) => {
-                    setTimeout(() => renderCard(item), index * 150);
+                    setTimeout(() => renderCard(item), index * 120);
                 });
 
-                status.innerText = "✨ 已為您生成 5 個全新單字";
-                document.getElementById('showAllBtn').style.display = 'block';
+                status.innerText = "💾 正在同步學習進度至雲端...";
 
-                // 4. 存回雲端
+                // 4. 同步回 GitHub (診斷寫入)
                 const updatedList = currentList.concat(newWords);
-                await fetch(url, {
+                const putRes = await fetch(url, {
                     method: "PUT",
                     headers: { Authorization: `token ${CONFIG.GH_TOKEN}` },
                     body: JSON.stringify({
-                        message: "Sync New Words",
+                        message: "Add 5 new study cards",
                         content: btoa(unescape(encodeURIComponent(JSON.stringify(updatedList, null, 2)))),
                         sha: ghData.sha
                     })
                 });
 
+                if (putRes.status !== 200 && putRes.status !== 201) throw new Error("寫入失敗！Token 需勾選 repo 權限");
+
+                status.style.color = "var(--success)";
+                status.innerText = "✨ 準備就緒！點擊單字可聽發音";
+                document.getElementById('showAllBtn').style.display = 'block';
+
             } catch (e) {
-                status.innerText = "❌ 發生錯誤，請檢查設定與權限";
+                status.style.color = "#ef4444";
+                status.innerText = "❌ 錯誤: " + e.message;
                 console.error(e);
             } finally {
                 btn.disabled = false;
@@ -151,9 +165,9 @@
             div.className = 'quiz-item';
             div.onclick = () => speak(item.word);
             div.innerHTML = `
-                <div class="word-row">
+                <div class="word-header">
                     <p class="word-text">${item.word}</p>
-                    <span class="speaker-icon">🔊</span>
+                    <span class="speaker">🔊</span>
                 </div>
                 <p class="word-def"><b>Definition:</b> ${item.def}</p>
                 <div class="word-ans">💡 ${item.trans}</div>
@@ -166,94 +180,14 @@
             ans.forEach(el => el.style.display = 'block');
         }
 
-        // 發音功能
         function speak(text) {
-            window.speechSynthesis.cancel(); // 先停止之前的發音
+            window.speechSynthesis.cancel();
             const msg = new SpeechSynthesisUtterance(text);
             msg.lang = 'en-US';
-            msg.rate = 0.9; // 稍微慢一點點比較清晰
+            msg.rate = 0.85;
             window.speechSynthesis.speak(msg);
         }
     </script>
 </body>
 </html>
-// ... (前方的 HTML 與 CSS 保持不變) ...
 
-async function generateAI() {
-    const status = document.getElementById('status');
-    const container = document.getElementById('quizContainer');
-    const btn = document.getElementById('genBtn');
-    
-    btn.disabled = true;
-    status.innerText = "🔍 正在診斷連線中...";
-    container.innerHTML = "";
-
-    try {
-        // 診斷 1：檢查 GitHub 讀取權限
-        const url = `https://api.github.com/repos/${CONFIG.GH_USER}/${CONFIG.GH_REPO}/contents/words.json`;
-        const getRes = await fetch(url, { 
-            headers: { Authorization: `token ${CONFIG.GH_TOKEN}` } 
-        });
-
-        if (getRes.status === 401) {
-            throw new Error("GitHub Token 錯誤！請確認 Token 是否貼完整，或是否已過期。");
-        } else if (getRes.status === 404) {
-            throw new Error("找不到檔案！請檢查：1.帳號名稱是否正確 2.Repo 名稱是否為 my-eng-app 3.Repo 是否設為 Public。");
-        }
-
-        const ghData = await getRes.json();
-        const currentList = JSON.parse(atob(ghData.content));
-        const blackList = currentList.map(i => i.word).join(', ');
-
-        status.innerText = "🧠 AI 思考中...";
-
-        // 診斷 2：檢查 Gemini API
-        const prompt = `你是一位英文老師，提供 5 個成人/旅遊單字，避開 [${blackList}]，回傳 JSON 陣列。`;
-        const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.GEMINI_KEY}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
-        
-        if (aiRes.status === 400) {
-            throw new Error("Gemini API Key 錯誤！請重新從 Google AI Studio 複製金鑰。");
-        }
-
-        const aiData = await aiRes.json();
-        const cleanJson = aiData.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
-        const newWords = JSON.parse(cleanJson);
-
-        // 顯示卡片
-        newWords.forEach((item, index) => {
-            setTimeout(() => renderCard(item), index * 150);
-        });
-
-        // 診斷 3：檢查 GitHub 寫入權限
-        status.innerText = "💾 正在同步至雲端...";
-        const updatedList = currentList.concat(newWords);
-        const putRes = await fetch(url, {
-            method: "PUT",
-            headers: { Authorization: `token ${CONFIG.GH_TOKEN}` },
-            body: JSON.stringify({
-                message: "Sync New Words",
-                content: btoa(unescape(encodeURIComponent(JSON.stringify(updatedList, null, 2)))),
-                sha: ghData.sha
-            })
-        });
-
-        if (putRes.status === 403 || putRes.status === 422) {
-            throw new Error("寫入失敗！請確認你的 GitHub Token 在申請時有勾選「repo」權限。");
-        }
-
-        status.innerText = "✨ 成功更新！";
-        document.getElementById('showAllBtn').style.display = 'block';
-
-    } catch (e) {
-        // 這裡會彈出具體的錯誤原因
-        status.innerText = "❌ " + e.message;
-        alert("診斷報告：\n" + e.message);
-        console.error(e);
-    } finally {
-        btn.disabled = false;
-    }
-}
