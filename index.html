@@ -3,89 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 英文助手</title>
+    <title>AI 智能英文練習器</title>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f8f9fa; display: flex; justify-content: center; padding: 20px; }
+        body { font-family: -apple-system, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
         .card { background: white; width: 100%; max-width: 400px; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; }
         input { width: 85%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 12px; font-size: 16px; outline: none; }
-        button { width: 45%; padding: 12px; border-radius: 12px; border: none; background: #1a73e8; color: white; cursor: pointer; margin: 5px; font-weight: bold; }
+        button { width: 45%; padding: 12px; border-radius: 12px; border: none; color: white; cursor: pointer; margin: 5px; font-weight: bold; transition: 0.3s; }
+        .btn-ai { background: #f39c12; } /* 橘色：AI出題 */
+        .btn-save { background: #1a73e8; } /* 藍色：手動存詞 */
+        .btn-quiz { background: #34a853; width: 92%; } /* 綠色：複習 */
         #status { font-size: 12px; color: #888; margin: 10px 0; height: 15px; }
+        .ans-box { background: #e8f0fe; padding: 15px; border-radius: 12px; margin-top: 15px; display: none; }
         hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
-        #qWord { font-size: 32px; margin: 10px 0; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h3>🚀 AI 智能存詞練習</h3>
-        <input type="text" id="wordInput" placeholder="輸入單字...">
-        <button onclick="saveWord()">AI 存入</button>
+        <h3>🚀 我的 AI 英文助手</h3>
+        
+        <!-- 操作區 -->
+        <input type="text" id="wordInput" placeholder="輸入單字 (選填)...">
+        <div style="display: flex; justify-content: center;">
+            <button class="btn-save" onclick="saveManual()">手動存詞</button>
+            <button class="btn-ai" onclick="generateAI()">AI 出題</button>
+        </div>
         <div id="status"></div>
+        
         <hr>
-        <button style="background: #34a853" onclick="nextQuiz()">隨機測驗</button>
-        <h1 id="qWord">---</h1>
-        <p id="qDef" style="color:#666"></p>
-        <h3 id="qTrans" style="color:#28a745; display:none"></h3>
-        <button id="showBtn" style="display:none; background:#6c757d" onclick="document.getElementById('qTrans').style.display='block'">看答案</button>
+        
+        <!-- 練習區 -->
+        <button class="btn-quiz" onclick="loadFromDB()">從資料庫複習</button>
+        <h1 id="qWord" style="font-size: 36px; margin: 20px 0;">---</h1>
+        <p id="qDef" style="color: #666;"></p>
+        
+        <div id="ansArea" class="ans-box">
+            <h3 id="qTrans" style="color: #188038; margin: 0;"></h3>
+        </div>
+        <button id="showBtn" style="display:none; background:#6c757d; width:92%" onclick="document.getElementById('ansArea').style.display='block'">看答案</button>
+
+        <button onclick="clearKeys()" style="margin-top:30px; background:none; color:#ccc; font-size:10px; width:auto">重設金鑰</button>
     </div>
 
     <script>
-        // --- 填寫區 (Private Repo 直接填沒問題) ---
-        const CONFIG = {
-            GEMINI_KEY: "AIzaSyCX81ohv8BaviqcbaUGO0DWQsO7MC9X2NA",
-            GH_TOKEN: " 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 ",
-            GH_USER: "nt2bpf2w6g-ctrl",
-            GH_REPO: "my-eng-app"
+        // --- 設定區：這四個變數會存放在你的手機瀏覽器裡 ---
+        let CONFIG = {
+            GEMINI_KEY: localStorage.getItem('gemini_key'),
+            GH_TOKEN: localStorage.getItem('gh_token'),
+            GH_USER: localStorage.getItem('gh_user'),
+            GH_REPO: localStorage.getItem('gh_repo') || "my-eng-app"
         };
 
-        async function saveWord() {
-            const word = document.getElementById('wordInput').value.trim();
-            const status = document.getElementById('status');
-            if(!word) return;
-            status.innerText = "AI 生成中...";
-            try {
-                // 1. AI 生成
-                const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.GEMINI_KEY}`, {
-                    method: "POST",
-                    body: JSON.stringify({contents: [{parts: [{text: `單字 "${word}"，回傳JSON(不要Markdown): {"word":"${word}","def":"英文解釋","trans":"中文翻譯"}`}]}]})
-                });
-                const aiData = await aiRes.json();
-                const newWord = JSON.parse(aiData.candidates[0].content.parts[0].text);
-
-                // 2. 寫入 GitHub
-                status.innerText = "寫入雲端中...";
-                const url = `https://api.github.com/repos/${CONFIG.GH_USER}/${CONFIG.GH_REPO}/contents/words.json`;
-                const ghGet = await fetch(url, { headers: { Authorization: `token ${CONFIG.GH_TOKEN}` } });
-                const ghData = await ghGet.json();
-                const content = JSON.parse(atob(ghData.content));
-                
-                content.push(newWord);
-                await fetch(url, {
-                    method: "PUT",
-                    headers: { Authorization: `token ${CONFIG.GH_TOKEN}` },
-                    body: JSON.stringify({
-                        message: `Add ${word}`,
-                        content: btoa(unescape(encodeURIComponent(JSON.stringify(content, null, 2)))),
-                        sha: ghData.sha
-                    })
-                });
-                status.innerText = "✅ 已存入！";
-                document.getElementById('wordInput').value = "";
-            } catch (e) { status.innerText = "❌ 失敗，檢查金鑰或網路"; }
+        // 第一次開啟網頁時會問你
+        if (!CONFIG.GEMINI_KEY || !CONFIG.GH_TOKEN || !CONFIG.GH_USER) {
+            CONFIG.GEMINI_KEY = prompt("請貼上 Gemini API Key:");
+            CONFIG.GH_TOKEN = prompt("請貼上 GitHub Token (ghp_...):");
+            CONFIG.GH_USER = prompt("請輸入 GitHub 帳號名稱:");
+            localStorage.setItem('gemini_key', CONFIG.GEMINI_KEY);
+            localStorage.setItem('gh_token', CONFIG.GH_TOKEN);
+            localStorage.setItem('gh_user', CONFIG.GH_USER);
+            localStorage.setItem('gh_repo', CONFIG.GH_REPO);
         }
 
-        async function nextQuiz() {
-            const res = await fetch(`https://raw.githubusercontent.com/${CONFIG.GH_USER}/${CONFIG.GH_REPO}/main/words.json?t=${Date.now()}`, {
-                headers: { Authorization: `token ${CONFIG.GH_TOKEN}` }
-            });
+        // 1. AI 自動出題邏輯
+        async function generateAI() {
+            updateStatus("AI 思考題目中...");
+            const promptStr = `隨機給一個多益或警察專業相關單字，回傳JSON(不要Markdown): {"word":"...","def":"英文解釋","trans":"中文翻譯"}`;
+            callAI(promptStr);
+        }
+
+        // 2. 手動存詞邏輯
+        async function saveManual() {
+            const word = document.getElementById('wordInput').value.trim();
+            if(!word) return alert("請先輸入單字");
+            updateStatus("AI 正在解析單字...");
+            const promptStr = `解析單字 "${word}"，回傳JSON(不要Markdown): {"word":"${word}","def":"英文解釋","trans":"中文翻譯"}`;
+            callAI(promptStr);
+        }
+
+        // 核心：呼叫 AI 並存入 GitHub
+        async function callAI(promptText) {
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.GEMINI_KEY}`, {
+                    method: "POST",
+                    body: JSON.stringify({contents: [{parts: [{text: promptText}]}]})
+                });
+                const data = await res.json();
+                const cleanJson = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "");
+                const wordObj = JSON.parse(cleanJson);
+                
+                displayWord(wordObj);
+                await saveToGithub(wordObj);
+                updateStatus("✅ 已存入雲端資料庫");
+            } catch (e) { updateStatus("❌ 發生錯誤，請檢查金鑰"); }
+        }
+
+        // 3. 複習邏輯
+        async function loadFromDB() {
+            updateStatus("載入中...");
+            const url = `https://raw.githubusercontent.com/${CONFIG.GH_USER}/${CONFIG.GH_REPO}/main/words.json?t=${Date.now()}`;
+            const res = await fetch(url, { headers: { Authorization: `token ${CONFIG.GH_TOKEN}` } });
             const data = await res.json();
-            if(!data.length) return alert("還沒存單字喔！");
-            const item = data[Math.floor(Math.random() * data.length)];
+            if(data.length === 0) return alert("資料庫是空的喔！");
+            displayWord(data[Math.floor(Math.random() * data.length)]);
+            updateStatus("已載入歷史單字");
+        }
+
+        // 工具函數
+        function displayWord(item) {
             document.getElementById('qWord').innerText = item.word;
             document.getElementById('qDef').innerText = item.def;
             document.getElementById('qTrans').innerText = item.trans;
-            document.getElementById('qTrans').style.display = 'none';
+            document.getElementById('ansArea').style.display = 'none';
             document.getElementById('showBtn').style.display = 'inline-block';
         }
+
+        async function saveToGithub(newObj) {
+            const url = `https://api.github.com/repos/${CONFIG.GH_USER}/${CONFIG.GH_REPO}/contents/words.json`;
+            const get = await fetch(url, { headers: { Authorization: `token ${CONFIG.GH_TOKEN}` } });
+            const gh = await get.json();
+            const list = JSON.parse(atob(gh.content));
+            list.push(newObj);
+            await fetch(url, {
+                method: "PUT",
+                headers: { Authorization: `token ${CONFIG.GH_TOKEN}` },
+                body: JSON.stringify({
+                    message: `Add ${newObj.word}`,
+                    content: btoa(unescape(encodeURIComponent(JSON.stringify(list, null, 2)))),
+                    sha: gh.sha
+                })
+            });
+        }
+
+        function updateStatus(txt) { document.getElementById('status').innerText = txt; }
+        function clearKeys() { localStorage.clear(); location.reload(); }
     </script>
 </body>
 </html>
