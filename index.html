@@ -53,8 +53,24 @@
                 });
                 
                 const aiData = await aiRes.json();
-                const rawText = aiData.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
-                const newWords = JSON.parse(rawText);
+                                const aiData = await aiRes.json();
+                // 1. 先檢查 AI 是否報錯
+                if (aiData.error) {
+                    throw new Error("AI 報錯: " + aiData.error.message);
+                }
+
+                // 2. 檢查有沒有回傳內容
+                if (!aiData.candidates || !aiData.candidates[0]) {
+                    // 如果沒內容，可能是 API Key 權限或安全檢查沒過
+                    console.log("完整回傳內容:", aiData);
+                    throw new Error("AI 沒有回傳單字，請稍後再試或檢查 API Key 權限");
+                }
+                
+                const rawText = aiData.candidates[0].content.parts[0].text;
+                // 3. 過濾掉 AI 可能帶有的 Markdown 標籤
+                const cleanJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+                const newWords = JSON.parse(cleanJson);
+
 
                 // 顯示介面
                 newWords.forEach(w => {
