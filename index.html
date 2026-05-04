@@ -8,12 +8,10 @@
         body { font-family: system-ui, -apple-system, sans-serif; background: #f1f5f9; display: flex; justify-content: center; padding: 20px; margin: 0; color: #1e293b; }
         .container { width: 100%; max-width: 400px; text-align: center; }
         h1 { color: #2563eb; margin-bottom: 5px; }
-        .btn { width: 100%; padding: 18px; background: #2563eb; color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
-        .btn:hover { background: #1d4ed8; }
+        .btn { width: 100%; padding: 18px; background: #2563eb; color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.2s; }
         .btn:disabled { background: #cbd5e1; cursor: not-allowed; }
-        .card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 12px; border: 1px solid #e2e8f0; text-align: left; box-shadow: 0 1px 3px rgba(0,0,0,0.1); animation: slideIn 0.3s ease-out; }
+        .card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 12px; border: 1px solid #e2e8f0; text-align: left; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         #st { margin: 10px 0; font-size: 14px; color: #64748b; min-height: 20px; }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
@@ -25,9 +23,10 @@
     </div>
 
     <script>
+        // 🚨 請務必確實填寫以下資訊
         const CONFIG = {
             API_KEY: "AIzaSyCEo2jDn_RPHaXj" + "MvauUm4XHqCOgRMnSow",
-            TOKEN: "ghp_o5BuUUXNi9TaIQzRK87Y" + "M6acDm0FPM00QEOM",
+            TOKEN:  "ghp_o5BuUUXNi9TaIQzRK87Y" + "M6acDm0FPM00QEOM",
             USER: "nt2bpf2w6g-ctrl",
             REPO: "my-eng-app"
         };
@@ -37,103 +36,89 @@
             const st = document.getElementById('st');
             const box = document.getElementById('display');
 
+            // 初始化狀態
             btn.disabled = true;
+            btn.innerText = "⏳ 處理中...";
+            st.innerText = "📡 正在連線 GitHub...";
             box.innerHTML = '';
-            st.innerText = "⏳ 正在處理中...";
 
             try {
                 // 1. 取得 GitHub 檔案內容
-                st.innerText = "📡 連線 GitHub...";
                 const url = `https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`;
-                const headers = {
-                    "Authorization": `token ${CONFIG.TOKEN.trim()}`,
-                    "Accept": "application/vnd.github.v3+json"
-                };
+                const ghRes = await fetch(url, { 
+                    headers: { "Authorization": `token ${CONFIG.TOKEN.trim()}` } 
+                });
 
-                const res = await fetch(url, { headers });
-                if (!res.ok) throw new Error(`GitHub 讀取失敗: ${res.status}`);
+                if (!ghRes.ok) throw new Error("GitHub 連線失敗，請檢查 Token 或 Repo 名稱");
 
-                const gh = await res.json();
-                // 處理 Base64 並支援中文字元
-                const list = JSON.parse(decodeURIComponent(escape(atob(gh.content.replace(/\n/g, '')))));
+                const ghData = await ghRes.json();
+                let list = [];
+                
+                // 解析現有單字清單，若檔案為空則設為空陣列
+                try {
+                    const content = decodeURIComponent(escape(atob(ghData.content.replace(/\n/g, ''))));
+                    list = JSON.parse(content || "[]");
+                } catch (e) {
+                    list = []; 
+                }
 
-                // 2. 呼叫 Gemini AI
-                st.innerText = "🤖 AI 生成單字中...";
+                // 2. 呼叫 Gemini AI 生成單字
+                st.innerText = "🤖 AI 正在生成單字...";
                 const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.API_KEY}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         contents: [{
                             parts: [{
-                                text: 'Give me 5 travel English words. Output must be a JSON array of objects. Format: [{"word":"hello","def":"a greeting","trans":"你好"}]'
+                                text: 'Give me 5 travel English words. Output MUST be a JSON array of objects. Format: [{"word":"hello","def":"a greeting","trans":"你好"}]'
                             }]
                         }],
-                        // 強制模型輸出純 JSON 格式
-                        generationConfig: {
-                            response_mime_type: "application/json"
-                        }
+                        generationConfig: { response_mime_type: "application/json" }
                     })
                 });
 
-                if (!aiRes.ok) throw new Error(`Gemini API 失敗: ${aiRes.status}`);
+                if (!aiRes.ok) throw new Error("Gemini API 請求失敗，請檢查 API Key");
 
                 const aiData = await aiRes.json();
-                let rawText = aiData.candidates[0].content.parts[0].text;
+                const newWords = JSON.parse(aiData.candidates[0].content.parts[0].text);
 
-                // 3. 穩健的 JSON 解析與清理
-                st.innerText = "🧹 清理資料格式...";
-                // 移除可能的 Markdown 標記
-                let jsonString = rawText.replace(/```json/g, "").replace(/
-```/g, "").trim();
-                
-                // 修正可能的全形字元 (保險起見)
-                jsonString = jsonString
-                    .replace(/[［]/g, "[").replace(/[］]/g, "]")
-                    .replace(/[｛]/g, "{").replace(/[｝]/g, "}")
-                    .replace(/[“”「」]/g, '"')
-                    .replace(/：/g, ":").replace(/，/g, ",");
-
-                const newWords = JSON.parse(jsonString);
-
-                // 4. 顯示結果到畫面
+                // 3. 渲染新單字到畫面上
                 newWords.forEach(w => {
                     const d = document.createElement('div');
                     d.className = 'card';
-                    d.innerHTML = `<b>${w.word}</b><br><small style="color:#64748b;">${w.def}</small><div style="color:#059669;margin-top:5px;font-weight:500;">${w.trans}</div>`;
-                    box.appendChild(d); // 使用 appendChild 讓新單字放在後面，或用 prepend 放在最前
+                    d.innerHTML = `<b>${w.word}</b><br><small style="color:#64748b;">${w.def}</small><div style="color:#059669;margin-top:5px;font-weight:bold;">${w.trans}</div>`;
+                    box.prepend(d);
                 });
 
-                // 5. 儲存回 GitHub
-                st.innerText = "💾 正在存回 GitHub...";
+                // 4. 存回 GitHub
+                st.innerText = "💾 正在同步到 GitHub...";
                 const updatedList = list.concat(newWords);
                 const updatedBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(updatedList))));
 
                 const putRes = await fetch(url, {
                     method: "PUT",
                     headers: {
-                        ...headers,
+                        "Authorization": `token ${CONFIG.TOKEN.trim()}`,
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        message: "Update: AI generated travel words",
+                        message: "AI generated new words",
                         content: updatedBase64,
-                        sha: gh.sha
+                        sha: ghData.sha
                     })
                 });
 
-                if (!putRes.ok) throw new Error(`GitHub 儲存失敗: ${putRes.status}`);
+                if (!putRes.ok) throw new Error("同步到 GitHub 失敗");
 
-                st.innerText = `✅ 完成！資料庫已有 ${updatedList.length} 個單字`;
+                st.innerText = `✅ 完成！總共 ${updatedList.length} 個單字`;
 
             } catch (e) {
                 console.error(e);
-                st.innerText = "❌ 發生錯誤";
-                box.innerHTML = `<div class="card" style="color:#dc2626; border-color:#fecaca; background:#fef2f2;">
-                    <strong>錯誤訊息：</strong><br>${e.message}
-                </div>`;
+                st.innerText = `❌ 錯誤: ${e.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "生產 5 個新單字";
             }
-
-            btn.disabled = false;
         }
     </script>
 </body>
