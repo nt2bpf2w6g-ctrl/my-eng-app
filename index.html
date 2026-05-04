@@ -3,33 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>成人/旅遊英文練習</title>
+    <title>AI 旅遊/成人英文學習</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
         .card { background: white; width: 100%; max-width: 500px; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; }
-        button { width: 90%; padding: 12px; border-radius: 12px; border: none; color: white; cursor: pointer; margin: 5px; font-weight: bold; font-size: 16px; }
-        .btn-ai { background: #f39c12; }
-        .btn-quiz { background: #34a853; }
-        #status { font-size: 12px; color: #888; margin: 10px 0; }
-        .quiz-item { text-align: left; background: #fff; border: 1px solid #eee; padding: 15px; border-radius: 12px; margin-bottom: 15px; }
-        .quiz-word { font-size: 24px; color: #1a73e8; margin: 0; }
-        .quiz-def { color: #666; font-size: 14px; margin: 5px 0; }
-        .quiz-trans { color: #188038; font-weight: bold; display: none; margin-top: 5px; }
+        button { width: 90%; padding: 14px; border-radius: 15px; border: none; color: white; cursor: pointer; margin: 8px; font-weight: bold; font-size: 16px; transition: 0.2s; }
+        button:active { transform: scale(0.98); }
+        .btn-ai { background: linear-gradient(135deg, #f39c12, #e67e22); }
+        #status { font-size: 13px; color: #666; margin: 10px 0; height: 20px; }
+        .quiz-item { text-align: left; background: #fff; border: 1px solid #eee; padding: 15px; border-radius: 12px; margin-bottom: 12px; border-left: 6px solid #f39c12; }
+        .quiz-word { font-size: 24px; color: #2c3e50; margin: 0; font-weight: bold; }
+        .quiz-def { color: #7f8c8d; font-size: 14px; margin: 5px 0; line-height: 1.4; }
+        .quiz-trans { color: #27ae60; font-weight: bold; display: none; margin-top: 8px; background: #f1f9f5; padding: 5px; border-radius: 5px; }
         hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h3>✈️ 成人/旅遊英文 5 連發</h3>
-        <button class="btn-ai" onclick="generateAI(5)">AI 一次出 5 題</button>
+        <h3>🌍 成人旅遊英文 AI 教練</h3>
+        <p style="font-size: 12px; color: #999;">AI 將參考線上資料庫並避開已學單字</p>
+        
+        <button class="btn-ai" id="mainBtn" onclick="generateAI()">生產 5 題 (不重複)</button>
         <div id="status"></div>
         <hr>
         <div id="quizContainer"></div>
-        <button id="showAllBtn" style="display:none; background:#6c757d" onclick="showAnswers()">顯示所有答案</button>
+        <button id="showAllBtn" style="display:none; background:#34495e" onclick="showAnswers()">顯示答案</button>
     </div>
 
     <script>
-        // --- 請務必填入你的資訊 ---
+        // --- 務必填寫 ---
         const CONFIG = {
             GEMINI_KEY: "AIzaSyCX81ohv8BaviqcbaUGO0DWQsO7MC9X2NA",
             GH_TOKEN: "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",
@@ -37,34 +39,64 @@
             GH_REPO: "my-eng-app"
         };
 
-        async function generateAI(count) {
+        async function generateAI() {
             const status = document.getElementById('status');
             const container = document.getElementById('quizContainer');
-            status.innerText = "AI 正在為您規劃 5 個旅遊/生活單字...";
-            container.innerHTML = ""; // 清空舊題目
-
-            // 調整 Prompt：一次要 5 題，且要是成人/旅遊相關
-            const promptStr = `請隨記提供 5 個適合「成人生活」或「出國旅遊」使用的英文單字或片語。回傳 JSON 格式(不要 Markdown 區塊)，格式為一個陣列：[{"word":"...","def":"英文解釋","trans":"中文翻譯"}, ...]`;
+            const btn = document.getElementById('mainBtn');
+            
+            btn.disabled = true;
+            status.innerText = "正在檢查資料庫並聯網搜尋新單字...";
+            container.innerHTML = "";
 
             try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.GEMINI_KEY}`, {
+                // 1. 抓取自己的 GitHub 資料庫（為了去重）
+                const url = `https://api.github.com/repos/${CONFIG.GH_USER}/${CONFIG.GH_REPO}/contents/words.json`;
+                const getRes = await fetch(url, { headers: { Authorization: `token ${CONFIG.GH_TOKEN}` } });
+                const ghData = await getRes.json();
+                const currentList = JSON.parse(atob(ghData.content));
+                const blackList = currentList.map(i => i.word).join(', ');
+
+                // 2. 指令 AI 參考外部資料並出題
+                const promptStr = `
+                    你是一位專業英文老師。請參考「Oxford 3000」或「旅遊常用字庫」。
+                    隨機挑選 5 個適合成人出國、飯店入住、餐廳點餐或數位遊牧相關的單字。
+                    **絕對不可包含以下單字**: [${blackList}]。
+                    請回傳 JSON 陣列，不要 Markdown: [{"word":"...","def":"...","trans":"..."}]
+                `;
+
+                // 3. 呼叫 Gemini
+                const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.GEMINI_KEY}`, {
                     method: "POST",
-                    body: JSON.stringify({contents: [{parts: [{text: promptStr}]}]})
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: promptStr }] }] })
                 });
-                const data = await res.json();
-                const cleanJson = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
-                const wordList = JSON.parse(cleanJson);
+                
+                const aiData = await aiRes.json();
+                const cleanJson = aiData.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
+                const newWords = JSON.parse(cleanJson);
 
-                wordList.forEach(item => {
-                    renderQuiz(item);
-                    saveToGithub(item); // 自動存入資料庫
-                });
-
+                // 4. 顯示與存檔
+                newWords.forEach(item => renderQuiz(item));
                 document.getElementById('showAllBtn').style.display = 'block';
-                status.innerText = `✅ 成功生成 ${count} 題並已存入資料庫`;
+                status.innerText = "✅ 已為您準備好 5 個全新單字";
+
+                // 將 5 個字合併存回你的 GitHub
+                const updatedList = currentList.concat(newWords);
+                await fetch(url, {
+                    method: "PUT",
+                    headers: { Authorization: `token ${CONFIG.GH_TOKEN}` },
+                    body: JSON.stringify({
+                        message: "Add 5 unique travel words",
+                        content: btoa(unescape(encodeURIComponent(JSON.stringify(updatedList, null, 2)))),
+                        sha: ghData.sha
+                    })
+                });
+
             } catch (e) {
-                status.innerText = "❌ 發生錯誤，請檢查金鑰或內容格式";
+                status.innerText = "❌ 發生錯誤，請確認 Token 與 Public 設定";
                 console.error(e);
+            } finally {
+                btn.disabled = false;
             }
         }
 
@@ -74,8 +106,8 @@
             div.className = 'quiz-item';
             div.innerHTML = `
                 <p class="quiz-word">${item.word}</p>
-                <p class="quiz-def"><b>Definition:</b> ${item.def}</p>
-                <p class="quiz-trans">中文解釋：${item.trans}</p>
+                <p class="quiz-def"><b>Meaning:</b> ${item.def}</p>
+                <p class="quiz-trans">中文：${item.trans}</p>
             `;
             container.appendChild(div);
         }
@@ -84,26 +116,6 @@
             const trans = document.querySelectorAll('.quiz-trans');
             trans.forEach(el => el.style.display = 'block');
         }
-
-        async function saveToGithub(newObj) {
-            const url = `https://api.github.com/repos/${CONFIG.GH_USER}/${CONFIG.GH_REPO}/contents/words.json`;
-            try {
-                const get = await fetch(url, { headers: { Authorization: `token ${CONFIG.GH_TOKEN}` } });
-                const gh = await get.json();
-                const list = JSON.parse(atob(gh.content));
-                list.push(newObj);
-                await fetch(url, {
-                    method: "PUT",
-                    headers: { Authorization: `token ${CONFIG.GH_TOKEN}` },
-                    body: JSON.stringify({
-                        message: `Add ${newObj.word}`,
-                        content: btoa(unescape(encodeURIComponent(JSON.stringify(list, null, 2)))),
-                        sha: gh.sha
-                    })
-                });
-            } catch (e) { console.error("儲存失敗", e); }
-        }
     </script>
 </body>
 </html>
-
