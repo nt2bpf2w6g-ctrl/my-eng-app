@@ -1,54 +1,31 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debug Mode</title>
-    <style>
-        body { font-family: sans-serif; text-align: center; padding: 50px; }
-        #btn { padding: 20px; font-size: 20px; background: blue; color: white; border-radius: 10px; }
-    </style>
-</head>
-<body>
-    <button id="btn" onclick="check()">測試連線</button>
-    <h1 id="out">等待測試...</h1>
+<script>
+    async function check() {
+        const out = document.getElementById('out');
+        try {
+            const CONFIG = {
+                API_KEY: "AIzaSyCEo2jDn_RPHaXjMvau" + "Um4XHqCOgRMnSow",
+                // 請在此填入新 Token (注意引號要是直的)
+                TOKEN: "ghp_o5BuUUXNi9TaIQzR" + "K87YM6acDm0FPM00QEOM",
+                USER: "nt2bpf2w6g-ctrl",
+                REPO: "my-eng-app"
+            };
 
-    <script>
-        function check() {
-            const out = document.getElementById('out');
-            try {
-                // --- 這裡請「極度小心」填寫 ---
-                const CONFIG = {
-                    API_KEY: "AIzaSyCEo2jDn_RPHaXj" + "MvauUm4XHqCOgRMnSow",
-                    TOKEN: "ghp_o5BuUUXNi9TaIQzRK87Y" + "M6acDm0FPM00QEOM",
-                    USER: "nt2bpf2w6g-ctrl",
-                    REPO: "my-eng-app"
-                };
-
-                if (CONFIG.TOKEN.includes("填")) {
-                    out.innerText = "❌ 你還沒填入 Token 吧？";
-                    return;
-                }
-
-                out.innerText = "✅ 代碼格式正確！正在嘗試呼叫 AI...";
-                
-                fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + CONFIG.API_KEY)
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.error) {
-                            out.innerText = "❌ API Key 失敗：" + data.error.message;
-                        } else {
-                            out.innerText = "🚀 AI 有反應！格式與 Key 都對了！";
-                        }
-                    })
-                    .catch(e => {
-                        out.innerText = "❌ 網路連線有問題";
-                    });
-
-            } catch (err) {
-                out.innerText = "❌ 語法錯誤：" + err.message;
+            out.innerText = "🔍 正在測試 GitHub 連線...";
+            const res = await fetch(`https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`, {
+                headers: { "Authorization": "token " + CONFIG.TOKEN.trim() }
+            });
+            
+            if (res.ok) {
+                out.innerText = "✅ GitHub 通了！現在測試 AI...";
+                // 測試 AI
+                const ai = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + CONFIG.API_KEY);
+                const aiData = await ai.json();
+                out.innerText = aiData.error ? "❌ AI 報錯：" + aiData.error.message : "🚀 全部成功！";
+            } else {
+                out.innerText = "❌ GitHub 拒絕連線 (錯誤碼:" + res.status + ")";
             }
+        } catch (e) {
+            out.innerText = "❌ 徹底連不上！原因：" + e.name + " (" + e.message + ")";
         }
-    </script>
-</body>
-</html>
+    }
+</script>
