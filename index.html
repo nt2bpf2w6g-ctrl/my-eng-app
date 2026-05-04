@@ -66,16 +66,10 @@
                 if (!aiRes.ok) throw new Error("AI 連線失敗：" + aiRes.status);
 
                 const aiData = await aiRes.json();
-                const rawText = aiData.candidates[0].content.parts[0].text
-    .replace(/```json|```/g, "")
-    .replace(/［/g, "[")
-    .replace(/］/g, "]")
-    .replace(/｛/g, "{")
-    .replace(/｝/g, "}")
-    .replace(/：/g, ":")
-    .replace(/，/g, ",")
-    .trim();
-
+                const raw = aiData.candidates[0].content.parts[0].text;
+                const match = raw.match(/\[[\s\S]*\]/);
+                if (!match) throw new Error("AI 回傳格式錯誤：" + raw.substring(0, 100));
+                const newWords = JSON.parse(match[0]);
                 const newWords = JSON.parse(rawText);
 
                 // 3. 顯示結果
