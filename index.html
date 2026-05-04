@@ -2,106 +2,147 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 英文助手</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 單字卡教練</title>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
-        .card { background: white; width: 100%; max-width: 400px; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); text-align: center; }
-        .btn { width: 100%; padding: 15px; border-radius: 10px; border: none; background: #2563eb; color: white; font-weight: bold; font-size: 16px; cursor: pointer; }
-        .btn:disabled { background: #ccc; }
-        #status { margin-top: 15px; font-size: 14px; color: #666; }
-        .quiz { margin-top: 20px; text-align: left; padding: 15px; background: #fafafa; border-radius: 10px; border-left: 5px solid #2563eb; }
-        .word { font-size: 24px; font-weight: bold; margin: 0; }
-        .ans { color: #059669; font-weight: bold; margin-top: 10px; display: none; }
+        :root {
+            --primary: #2563eb;
+            --bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+        }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); display: flex; justify-content: center; margin: 0; padding: 20px; }
+        .container { width: 100%; max-width: 400px; text-align: center; }
+        
+        /* 標題與狀態 */
+        h1 { font-size: 28px; color: var(--primary); margin-bottom: 5px; }
+        #status { font-size: 13px; color: #64748b; margin-bottom: 20px; height: 20px; }
+
+        /* 按鈕樣式 */
+        .btn { 
+            width: 100%; padding: 16px; border-radius: 15px; border: none; 
+            background: var(--primary); color: white; font-weight: bold; font-size: 16px; 
+            cursor: pointer; box-shadow: 0 4px 6px -1px rgba(37,99,235,0.2); margin-bottom: 20px;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn:disabled { background: #cbd5e1; }
+
+        /* 單字卡片樣式 */
+        .card-container { perspective: 1000px; margin-bottom: 15px; }
+        .word-card { 
+            background: var(--card-bg); height: 200px; border-radius: 20px; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05); cursor: pointer;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative; padding: 20px; border: 1px solid #e2e8f0;
+            animation: slideIn 0.5s ease-out forwards;
+        }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        .word-text { font-size: 32px; font-weight: 800; color: var(--text-main); margin: 0; }
+        .word-def { font-size: 14px; color: #64748b; margin-top: 10px; padding: 0 10px; }
+        
+        /* 中文答案預設隱藏，點擊後顯示 */
+        .word-trans { 
+            margin-top: 20px; font-size: 20px; color: #059669; font-weight: bold;
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .word-card.flipped .word-trans { opacity: 1; }
+        .hint { font-size: 11px; color: #94a3b8; margin-top: 15px; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2>🚀 AI 單字產生器</h2>
-        <button class="btn" id="go" onclick="run()">生產 5 個單字</button>
-        <div id="status">點擊按鈕開始</div>
-        <div id="box"></div>
-        <button id="showBtn" class="btn" style="display:none; background:#334155; margin-top:10px;" onclick="show()">看答案</button>
+    <div class="container">
+        <h1>WordsUp Card</h1>
+        <div id="status">準備好挑戰新單字了嗎？</div>
+        
+        <button class="btn" id="genBtn" onclick="generateAI()">生產 5 張新字卡</button>
+        
+        <div id="quizContainer"></div>
     </div>
 
     <script>
-        // --- 設定區 ---
+        // --- 請務必填寫正確的 Key 與帳號 ---
         const CONFIG = {
-            GEMINI_KEY: "AIzaSyCX81ohv8BaviqcbaUGO0DWQsO7MC9X2NA",
-            GH_TOKEN: "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", 
-            GH_USER: "nt2bpf2w6g-ctrl",
-            GH_REPO: "my-eng-app"
+            API_KEY: "AIzaSyCX81ohv8BaviqcbaUGO0DWQsO7MC9X2NA",
+            TOKEN: "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", // 必須勾選 repo
+            USER: "nt2bpf2w6g-ctrl", // 注意大小寫
+            REPO: "my-eng-app"
         };
 
-        async function run() {
-            const btn = document.getElementById('go');
+        async function generateAI() {
             const status = document.getElementById('status');
-            const box = document.getElementById('box');
+            const container = document.getElementById('quizContainer');
+            const btn = document.getElementById('genBtn');
             
             btn.disabled = true;
-            status.innerText = "正在連線 GitHub...";
-            box.innerHTML = "";
+            status.innerText = "⏳ 正在搜尋新單字並排版...";
+            container.innerHTML = "";
 
             try {
-                // 1. 抓取資料
+                // 1. 抓取舊資料
                 const url = `https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`;
                 const res = await fetch(url, { headers: { Authorization: `token ${CONFIG.TOKEN}` } });
-                if (!res.ok) throw new Error("GitHub 連線失敗，請檢查 Token 或 Repo 是否設為 Public");
+                if (!res.ok) throw new Error("GitHub 連線失敗，請檢查 Token 權限及帳號大小寫");
                 
                 const gh = await res.json();
                 const list = JSON.parse(atob(gh.content));
-                const oldWords = list.map(i => i.word).join(',');
+                const blackList = list.map(i => i.word).join(',');
 
-                status.innerText = "AI 正在思考題目...";
-
-                // 2. AI 出題
-                const prompt = `提供5個成人旅遊英文單字，避開[${oldWords}]。只給JSON格式: [{"word":"...","def":"...","trans":"..."}]`;
+                // 2. AI 出題 (專注於旅遊與生活)
+                const prompt = `你是一位英文老師。請提供 5 個適合「成人旅遊、飯店、生活」的高頻單字。避開 [${blackList}]。只回傳 JSON 陣列: [{"word":"...","def":"...","trans":"..."}]`;
                 const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.API_KEY}`, {
                     method: "POST",
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                 });
                 const aiData = await aiRes.json();
-                const words = JSON.parse(aiData.candidates[0].content.parts[0].text.replace(/```json|```/g, ""));
+                const newWords = JSON.parse(aiData.candidates[0].content.parts[0].text.replace(/```json|```/g, ""));
 
-                // 3. 顯示
-                words.forEach(w => {
-                    const d = document.createElement('div');
-                    d.className = 'quiz';
-                    d.onclick = () => {
-                        const m = new SpeechSynthesisUtterance(w.word);
-                        m.lang = 'en-US';
-                        window.speechSynthesis.speak(m);
-                    };
-                    d.innerHTML = `<p class="word">${w.word} 🔊</p><p>${w.def}</p><p class="ans">${w.trans}</p>`;
-                    box.appendChild(d);
+                // 3. 生成字卡
+                newWords.forEach((item, idx) => {
+                    const card = document.createElement('div');
+                    card.className = 'card-container';
+                    card.innerHTML = `
+                        <div class="word-card" onclick="flipCard(this, '${item.word}')">
+                            <p class="word-text">${item.word}</p>
+                            <p class="word-def">${item.def}</p>
+                            <div class="word-trans">${item.trans}</div>
+                            <div class="hint">點擊發音並翻開翻譯</div>
+                        </div>
+                    `;
+                    container.appendChild(card);
                 });
 
-                // 4. 存檔
-                status.innerText = "正在儲存到雲端...";
-                const newList = list.concat(words);
+                // 4. 存回 GitHub
+                const updatedList = list.concat(newWords);
                 await fetch(url, {
                     method: "PUT",
                     headers: { Authorization: `token ${CONFIG.TOKEN}` },
                     body: JSON.stringify({
-                        message: "update",
-                        content: btoa(unescape(encodeURIComponent(JSON.stringify(newList)))),
+                        message: "Sync cards",
+                        content: btoa(unescape(encodeURIComponent(JSON.stringify(updatedList)))),
                         sha: gh.sha
                     })
                 });
 
-                status.innerText = "✅ 完成！點擊單字可發音";
-                document.getElementById('showBtn').style.display = 'block';
+                status.innerText = "✅ 5 張字卡已準備好！";
 
             } catch (e) {
-                alert("出錯了: " + e.message);
-                status.innerText = "❌ 失敗";
+                alert("錯誤：" + e.message);
+                status.innerText = "❌ 出錯了，請檢查設定";
             } finally {
                 btn.disabled = false;
             }
         }
 
-        function show() {
-            document.querySelectorAll('.ans').forEach(a => a.style.display = 'block');
+        // 翻轉卡片與發音
+        function flipCard(el, word) {
+            el.classList.toggle('flipped');
+            // 發音
+            window.speechSynthesis.cancel();
+            const msg = new SpeechSynthesisUtterance(word);
+            msg.lang = 'en-US';
+            window.speechSynthesis.speak(msg);
         }
     </script>
 </body>
