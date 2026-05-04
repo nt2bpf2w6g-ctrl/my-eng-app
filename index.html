@@ -2,48 +2,103 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WordsUp Debug</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI WordsUp</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 50px; background: #f8fafc; }
-        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; }
+        :root { --p: #2563eb; --bg: #f1f5f9; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; margin: 0; }
+        .container { width: 100%; max-width: 400px; text-align: center; }
+        h1 { color: var(--p); font-size: 28px; margin-bottom: 5px; }
+        #status { font-size: 13px; color: #64748b; margin-bottom: 20px; height: 1.2em; }
+        .btn { width: 100%; padding: 16px; background: var(--p); color: white; border: none; border-radius: 15px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.2); }
+        .btn:disabled { background: #cbd5e1; box-shadow: none; }
+        .card { background: white; padding: 25px; border-radius: 20px; margin-bottom: 15px; border: 1px solid #e2e8f0; cursor: pointer; text-align: left; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .word { font-size: 24px; font-weight: 800; color: #1e293b; }
+        .trans { margin-top: 10px; color: #059669; font-size: 18px; font-weight: bold; display: none; border-top: 1px dashed #eee; padding-top: 10px; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>🛠️ 系統診斷中</h1>
-        <div id="status">讀取中...</div>
-        <button onclick="check()" style="padding:10px 20px; margin-top:20px;">測試按鈕</button>
+    <div class="container">
+        <h1>🌍 AI WordsUp</h1>
+        <div id="status">GitHub 已連線 ✅ 準備就緒</div>
+        <button class="btn" id="runBtn" onclick="main()">生產 5 個新單字</button>
+        <div id="display" style="margin-top:20px;"></div>
     </div>
 
     <script>
-        // 設定區域
         const CONFIG = {
+            // 沿用你剛才測試成功的設定
             API_KEY: "AIzaSyCEo2jDn_RPHaXj" + "MvauUm4XHqCOgRMnSow",
             TOKEN: "ghp_o5BuUUXNi9TaIQzRK87Y" + "M6acDm0FPM00QEOM",
             USER: "nt2bpf2w6g-ctrl",
             REPO: "my-eng-app"
         };
 
-        // 初始化檢查
-        window.onload = function() {
-            document.getElementById('status').innerText = "✅ 代碼結構正確，請點擊測試按鈕。";
-        };
-
-        async function check() {
+        async function main() {
+            const btn = document.getElementById('runBtn');
             const status = document.getElementById('status');
-            status.innerText = "⏳ 正在測試連線...";
+            const display = document.getElementById('display');
+            
+            btn.disabled = true;
+            status.innerText = "⏳ 正在讀取資料庫...";
+
             try {
-                const res = await fetch(`https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`, {
-                    headers: { "Authorization": "token " + CONFIG.TOKEN.replace(/\s/g, '') }
+                const url = `https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`;
+                const headers = { "Authorization": "token " + CONFIG.TOKEN.trim() };
+
+                // 1. 抓取舊資料
+                const res = await fetch(url, { headers });
+                const gh = await res.json();
+                const list = JSON.parse(decodeURIComponent(escape(atob(gh.content))));
+
+                status.innerText = "🤖 AI 正在構思單字...";
+
+                // 2. 呼叫 Gemini AI
+                const prompt = "提供5個常用的旅遊英文單字，只要JSON陣列: [{'word':'...','def':'...','trans':'...'}]";
+                const aiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + CONFIG.API_KEY, {
+                    method: "POST",
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                 });
-                if (res.ok) {
-                    status.innerText = "🚀 GitHub 連線成功！";
-                } else {
-                    status.innerText = "❌ 連線失敗：" + res.status;
-                }
+                
+                const aiData = await aiRes.json();
+                const rawText = aiData.candidates[0].content.parts[0].text;
+                const newWords = JSON.parse(rawText.replace(/```json|
+```/g, "").trim());
+
+                // 3. 顯示結果
+                newWords.forEach(w => {
+                    const div = document.createElement('div');
+                    div.className = 'card';
+                    div.onclick = function() {
+                        this.querySelector('.trans').style.display = 'block';
+                        window.speechSynthesis.cancel();
+                        const m = new SpeechSynthesisUtterance(w.word); m.lang = 'en-US'; window.speechSynthesis.speak(m);
+                    };
+                    div.innerHTML = `<div class="word">${w.word} 🔊</div><div style="color:#64748b;font-size:14px">${w.def}</div><div class="trans">${w.trans}</div>`;
+                    display.prepend(div);
+                });
+
+                // 4. 同步回 GitHub
+                status.innerText = "💾 正在儲存進度...";
+                const updatedData = list.concat(newWords);
+                await fetch(url, {
+                    method: "PUT",
+                    headers: headers,
+                    body: JSON.stringify({
+                        message: "Add words",
+                        content: btoa(unescape(encodeURIComponent(JSON.stringify(updatedData)))),
+                        sha: gh.sha
+                    })
+                });
+
+                status.innerText = "✅ 成功！點擊卡片聽發音";
+
             } catch (e) {
-                status.innerText = "❌ 錯誤：" + e.message;
+                alert("錯誤：" + e.message);
+                status.innerText = "❌ 發生錯誤";
+            } finally {
+                btn.disabled = false;
             }
         }
     </script>
