@@ -70,9 +70,17 @@
 
                 const aiData = await aiRes.json();
                 const raw = aiData.candidates[0].content.parts[0].text;
-                const match = raw.match(/\[[\s\S]*\]/);
+
+                // 抓出 JSON 陣列（支援全形括號）
+                const match = raw.match(/[\[［][\s\S]*[\]］]/);
                 if (!match) throw new Error("AI格式錯誤：" + raw.substring(0, 80));
-                const newWords = JSON.parse(match[0]);
+                const cleaned = match[0]
+                    .replace(/［/g, "[").replace(/］/g, "]")
+                    .replace(/｛/g, "{").replace(/｝/g, "}")
+                    .replace(/：/g, ":").replace(/，/g, ",")
+                    .replace(/「/g, '"').replace(/」/g, '"')
+                    .replace(/'/g, '"').replace(/'/g, '"');
+                const newWords = JSON.parse(cleaned);
 
                 // 3. 顯示結果
                 newWords.forEach(w => {
