@@ -177,3 +177,83 @@
     </script>
 </body>
 </html>
+// ... (前方的 HTML 與 CSS 保持不變) ...
+
+async function generateAI() {
+    const status = document.getElementById('status');
+    const container = document.getElementById('quizContainer');
+    const btn = document.getElementById('genBtn');
+    
+    btn.disabled = true;
+    status.innerText = "🔍 正在診斷連線中...";
+    container.innerHTML = "";
+
+    try {
+        // 診斷 1：檢查 GitHub 讀取權限
+        const url = `https://api.github.com/repos/${CONFIG.GH_USER}/${CONFIG.GH_REPO}/contents/words.json`;
+        const getRes = await fetch(url, { 
+            headers: { Authorization: `token ${CONFIG.GH_TOKEN}` } 
+        });
+
+        if (getRes.status === 401) {
+            throw new Error("GitHub Token 錯誤！請確認 Token 是否貼完整，或是否已過期。");
+        } else if (getRes.status === 404) {
+            throw new Error("找不到檔案！請檢查：1.帳號名稱是否正確 2.Repo 名稱是否為 my-eng-app 3.Repo 是否設為 Public。");
+        }
+
+        const ghData = await getRes.json();
+        const currentList = JSON.parse(atob(ghData.content));
+        const blackList = currentList.map(i => i.word).join(', ');
+
+        status.innerText = "🧠 AI 思考中...";
+
+        // 診斷 2：檢查 Gemini API
+        const prompt = `你是一位英文老師，提供 5 個成人/旅遊單字，避開 [${blackList}]，回傳 JSON 陣列。`;
+        const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.GEMINI_KEY}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        
+        if (aiRes.status === 400) {
+            throw new Error("Gemini API Key 錯誤！請重新從 Google AI Studio 複製金鑰。");
+        }
+
+        const aiData = await aiRes.json();
+        const cleanJson = aiData.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
+        const newWords = JSON.parse(cleanJson);
+
+        // 顯示卡片
+        newWords.forEach((item, index) => {
+            setTimeout(() => renderCard(item), index * 150);
+        });
+
+        // 診斷 3：檢查 GitHub 寫入權限
+        status.innerText = "💾 正在同步至雲端...";
+        const updatedList = currentList.concat(newWords);
+        const putRes = await fetch(url, {
+            method: "PUT",
+            headers: { Authorization: `token ${CONFIG.GH_TOKEN}` },
+            body: JSON.stringify({
+                message: "Sync New Words",
+                content: btoa(unescape(encodeURIComponent(JSON.stringify(updatedList, null, 2)))),
+                sha: ghData.sha
+            })
+        });
+
+        if (putRes.status === 403 || putRes.status === 422) {
+            throw new Error("寫入失敗！請確認你的 GitHub Token 在申請時有勾選「repo」權限。");
+        }
+
+        status.innerText = "✨ 成功更新！";
+        document.getElementById('showAllBtn').style.display = 'block';
+
+    } catch (e) {
+        // 這裡會彈出具體的錯誤原因
+        status.innerText = "❌ " + e.message;
+        alert("診斷報告：\n" + e.message);
+        console.error(e);
+    } finally {
+        btn.disabled = false;
+    }
+}
