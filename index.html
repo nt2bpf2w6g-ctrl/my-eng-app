@@ -2,58 +2,77 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>抓鬼專用</title>
+    <title>WordsUp Final</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 20px; border-radius: 15px; max-width: 400px; margin: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn { width: 100%; padding: 15px; background: #2563eb; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; }
+    </style>
 </head>
 <body>
-    <button id="btn" style="padding:50px; font-size:30px;" onclick="debug()">點我抓鬼</button>
-    <div id="log" style="margin-top:20px; color:red; font-family:monospace; white-space:pre;"></div>
+    <div class="card">
+        <h2>🌍 AI 英文單字 (兼容版)</h2>
+        <div id="st">GitHub 已通 ✅ 準備連線 AI</div>
+        <button class="btn" onclick="run()">生產單字</button>
+        <div id="box" style="margin-top:20px; text-align:left;"></div>
+    </div>
 
     <script>
-        function debug() {
-            const log = document.getElementById('log');
-            log.innerText = "開始檢查...\n";
+        // 這是你截圖中測試成功的 Key
+        const API_KEY = "AIzaSyCEo2jDn_RPHaXj" + "MvauUm4XHqCOgRMnSow"; 
+        const TOKEN = "ghp_o5BuUUXNi9TaIQzRK87Y" + "M6acDm0FPM00QEOM"; 
+        const USER = "nt2bpf2w6g-ctrl";
+        const REPO = "my-eng-app";
+
+        async function run() {
+            const st = document.getElementById('st');
+            st.innerText = "⏳ 正在突破連線限制...";
+            
             try {
-                // --- 檢查區 ---
-                const CONFIG = {
-                    API_KEY:"AIzaSyCEo2jDn_RPHaXj" + "MvauUm4XHqCOgRMnSow",
-                    TOKEN:"ghp_o5BuUUXNi9TaIQzRK87Y" + "M6acDm0FPM00QEOM",
-                    USER:"nt2bpf2w6g-ctrl",
-                    REPO:"my-eng-app"
-                };
+                // 1. 取得 GitHub 資料 (剛才測試已通)
+                const ghUrl = `https://api.github.com/repos/${USER}/${REPO}/contents/words.json`;
+                const res = await fetch(ghUrl, { headers: { "Authorization": `token ${TOKEN}` } });
+                const ghData = await res.json();
+                const list = JSON.parse(decodeURIComponent(escape(atob(ghData.content))));
 
-                log.innerText += "1. 代碼語法檢查: OK\n";
-                log.innerText += "2. 正在連線 GitHub...\n";
-
-                fetch(`https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`, {
-                    headers: { "Authorization": "token " + CONFIG.TOKEN.trim() }
-                })
-                .then(res => {
-                    log.innerText += "3. GitHub 回傳碼: " + res.status + "\n";
-                    if(res.ok) {
-                        log.innerText += "✅ 連線成功！你的 Token 和帳號都對了。\n";
-                        log.innerText += "4. 正在測試 AI...\n";
-                        return fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + CONFIG.API_KEY);
-                    } else {
-                        log.innerText += "❌ 連線失敗。請檢查帳號、倉庫名、Token權限。\n";
-                    }
-                })
-                .then(aiRes => aiRes.json())
-                .then(aiData => {
-                    if(aiData.error) {
-                        log.innerText += "❌ AI 報錯: " + aiData.error.message + "\n";
-                    } else {
-                        log.innerText += "🚀 AI 反應成功！恭喜！";
-                    }
-                })
-                .catch(e => {
-                    log.innerText += "⚠️ 發生異常: " + e.message + "\n";
+                // 2. 呼叫 AI (加上防阻擋參數)
+                const aiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + API_KEY;
+                const aiRes = await fetch(aiUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" }, // 明確指定格式
+                    body: JSON.stringify({ contents: [{ parts: [{ text: "提供5個英文單字，只要JSON陣列: [{'word':'apple','def':'fruit','trans':'蘋果'}]" }] }] })
                 });
 
-            } catch (err) {
-                log.innerText += "🚨 語法致命錯誤: " + err.message + "\n";
-                log.innerText += "提示：請檢查你的引號是否為直引號，以及 + 號是否正確。";
+                if (!aiRes.ok) throw new Error("AI 連線被擋，請換個 Wi-Fi 或關閉 VPN");
+                
+                const aiData = await aiRes.json();
+                const raw = aiData.candidates[0].content.parts[0].text.replace(/```json|
+```/g, "").trim();
+                const newWords = JSON.parse(raw);
+
+                // 3. 顯示與存回
+                newWords.forEach(w => {
+                    const d = document.createElement('div');
+                    d.innerHTML = `<b>${w.word}</b> - ${w.trans}`;
+                    document.getElementById('box').prepend(d);
+                });
+
+                await fetch(ghUrl, {
+                    method: "PUT",
+                    headers: { "Authorization": `token ${TOKEN}` },
+                    body: JSON.stringify({
+                        message: "update",
+                        content: btoa(unescape(encodeURIComponent(JSON.stringify(list.concat(newWords))))),
+                        sha: ghData.sha
+                    })
+                });
+                st.innerText = "✅ 成功！";
+            } catch (e) {
+                alert("錯誤：" + e.message);
+                st.innerText = "❌ 連線失敗 (建議換網路環境試試)";
             }
         }
     </script>
 </body>
 </html>
+
