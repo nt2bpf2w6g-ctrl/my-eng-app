@@ -71,9 +71,36 @@
         };
 
         async function generateAI() {
-            const status = document.getElementById('status');
-            const container = document.getElementById('quizContainer');
-            const btn = document.getElementById('genBtn');
+    const btn = document.getElementById('genBtn');
+    const status = document.getElementById('status');
+    btn.disabled = true;
+    status.innerText = "⏳ 正在嘗試連線 GitHub...";
+
+    try {
+        const url = `https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`;
+        
+        // 診斷開始
+        const res = await fetch(url, { 
+            headers: { 'Authorization': `token ${CONFIG.TOKEN.trim()}` } 
+        });
+
+        if (!res.ok) {
+            const errorMsg = await res.json();
+            // 直接彈窗顯示具體錯誤，不再猜測
+            alert("❌ GitHub 連線失敗！\n錯誤代碼：" + res.status + "\n訊息：" + errorMsg.message);
+            throw new Error(errorMsg.message);
+        }
+
+        // ... (後續 AI 邏輯保持不變) ...
+        status.innerText = "✅ 連線成功！AI 處理中...";
+        
+    } catch (e) {
+        status.innerText = "❌ 失敗原因：" + e.message;
+    } finally {
+        btn.disabled = false;
+    }
+}
+
             
             btn.disabled = true;
             status.innerText = "⏳ 正在搜尋新單字並排版...";
