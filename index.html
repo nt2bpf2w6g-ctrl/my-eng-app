@@ -3,88 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 單字練習</title>
+    <title>AI Words</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f4f7f6; }
-        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
-        .btn { width: 100%; padding: 15px; background: #007bff; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 18px; cursor: pointer; }
-        #st { margin: 15px 0; color: #666; font-size: 14px; }
-        .item { border-bottom: 1px solid #eee; padding: 10px; text-align: left; }
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        .btn { width: 100%; padding: 20px; background: #2563eb; color: white; border-radius: 12px; font-size: 20px; border: none; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>🚀 AI 單字練習</h1>
-        <div id="st">等待輸入金鑰...</div>
-        <button class="btn" onclick="start()">生產 5 個新單字</button>
-        <div id="box" style="margin-top:20px;"></div>
-    </div>
+    <h2 id="st">✅ 系統已就緒</h2>
+    <button class="btn" onclick="main()">點我生產單字</button>
+    <div id="box" style="margin-top:20px; text-align:left;"></div>
 
     <script>
         const CFG = {
-            TOKEN: "ghp_iR1hz7tD1opILRNg"+"P0a5sQzpVpIJcr4WPLZs", // GitHub Token
+            TOKEN: "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", 
             USER: "nt2bpf2w6g-ctrl",
             REPO: "my-eng-app"
         };
 
-        async function start() {
-            // 1. 強制要求輸入金鑰，避免代碼裡的舊金鑰干擾
-            const key = prompt("請貼上您的 Google API Key (AIza開頭):");
-            if (!key || key.length < 10) return alert("請輸入正確的金鑰！");
+        async function main() {
+            const key = prompt("請貼上 Google API Key:");
+            if (!key) return;
 
-            const st = document.getElementById('st');
-            const box = document.getElementById('box');
-            st.innerText = "⏳ 正在驗證金鑰並連線 GitHub...";
-
+            document.getElementById('st').innerText = "⏳ 執行中...";
             try {
-                // 2. 抓取 GitHub 上的 words.json
-                const ghUrl = `https://api.github.com/repos/${CFG.USER}/${CFG.REPO}/contents/words.json`;
-                const headers = { "Authorization": `token ${CFG.TOKEN.trim()}` };
-                const res = await fetch(ghUrl, { headers });
-                
-                if (!res.ok) throw new Error("GitHub 連線失敗，請檢查 Token 或帳號名");
-                const ghData = await res.json();
-                const list = JSON.parse(decodeURIComponent(escape(atob(ghData.content))));
+                // 1. 讀取 GitHub ( words.json 必須是 [] )
+                const url = `https://api.github.com/repos/${CFG.USER}/${CFG.REPO}/contents/words.json`;
+                const res = await fetch(url, { headers: { "Authorization": "token " + CFG.TOKEN.trim() } });
+                const gh = await res.json();
+                const list = JSON.parse(decodeURIComponent(escape(atob(gh.content))));
 
-                // 3. 呼叫 AI
-                st.innerText = "🤖 AI 正在生產單字...";
-                const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key.trim()}`, {
+                // 2. AI 生產
+                const ai = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + key.trim(), {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: "提供5個常用英文單字，只要JSON陣列: [{'word':'apple','def':'fruit','trans':'蘋果'}]" }] }] })
+                    body: JSON.stringify({ contents: [{ parts: [{ text: "JSON 5 words: [{'word':'apple','trans':'蘋果'}]" }] }] })
                 });
-
-                const aiData = await aiRes.json();
-                if (aiData.error) throw new Error("AI 驗證失敗: " + aiData.error.message);
-
-                const raw = aiData.candidates[0].content.parts[0].text.replace(/```json|
+                const data = await ai.json();
+                const raw = data.candidates[0].content.parts[0].text.replace(/```json|
 ```/g, "").trim();
-                const newWords = JSON.parse(raw);
+                const news = JSON.parse(raw);
 
-                // 4. 顯示
-                newWords.forEach(w => {
+                // 3. 顯示與存回
+                news.forEach(w => {
                     const d = document.createElement('div');
-                    d.className = 'item';
-                    d.innerHTML = `<b>${w.word}</b> - ${w.trans}`;
-                    box.prepend(d);
+                    d.innerHTML = `<b>${w.word}</b>: ${w.trans}`;
+                    document.getElementById('box').prepend(d);
                 });
 
-                // 5. 存回 GitHub
-                st.innerText = "💾 正在存入題庫...";
-                await fetch(ghUrl, {
+                await fetch(url, {
                     method: "PUT",
-                    headers: headers,
+                    headers: { "Authorization": "token " + CFG.TOKEN.trim() },
                     body: JSON.stringify({
-                        message: "update",
-                        content: btoa(unescape(encodeURIComponent(JSON.stringify(list.concat(newWords))))),
-                        sha: ghData.sha
+                        message: "up",
+                        content: btoa(unescape(encodeURIComponent(JSON.stringify(list.concat(news))))),
+                        sha: gh.sha
                     })
                 });
-                st.innerText = "✅ 成功！單字已存入 GitHub";
-
+                document.getElementById('st').innerText = "✅ 成功！";
             } catch (e) {
-                alert("發生錯誤：" + e.message);
-                st.innerText = "❌ 操作中斷";
+                alert("錯誤：" + e.message);
+                document.getElementById('st').innerText = "❌ 失敗";
             }
         }
     </script>
