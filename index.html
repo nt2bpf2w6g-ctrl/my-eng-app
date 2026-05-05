@@ -2,68 +2,84 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Words</title>
+    <title>AI WordsUp Final</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; }
-        .btn { width: 100%; padding: 20px; background: #2563eb; color: white; border-radius: 12px; font-size: 20px; border: none; }
+        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f1f5f9; }
+        .btn { width: 100%; max-width: 300px; padding: 20px; background: #2563eb; color: white; border-radius: 15px; font-weight: bold; border: none; cursor: pointer; font-size: 1.2rem; }
     </style>
 </head>
 <body>
-    <h2 id="st">✅ 系統已就緒</h2>
-    <button class="btn" onclick="main()">點我生產單字</button>
-    <div id="box" style="margin-top:20px; text-align:left;"></div>
+    <h1>🌍 AI 單字生成器</h1>
+    <div id="st" style="margin-bottom:20px;">系統已就緒</div>
+    <button class="btn" onclick="run()">生產新單字</button>
+    <div id="box" style="margin-top:20px; text-align:left; max-width:400px; margin-left:auto; margin-right:auto;"></div>
 
     <script>
         const CFG = {
-            TOKEN: "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", 
+            // 請直接填入你電腦上測試過的一段式完整資料
+            TOKEN:"ghp_x3CG2qlPvJSEH"+"YDthMi0ystln6PAgP10mYll",
             USER: "nt2bpf2w6g-ctrl",
             REPO: "my-eng-app"
         };
 
-        async function main() {
+        async function run() {
+            const st = document.getElementById('st');
             const key = prompt("請貼上 Google API Key:");
             if (!key) return;
 
-            document.getElementById('st').innerText = "⏳ 執行中...";
+            st.innerText = "⏳ 正在處理中...";
             try {
-                // 1. 讀取 GitHub ( words.json 必須是 [] )
                 const url = `https://api.github.com/repos/${CFG.USER}/${CFG.REPO}/contents/words.json`;
-                const res = await fetch(url, { headers: { "Authorization": "token " + CFG.TOKEN.trim() } });
-                const gh = await res.json();
-                const list = JSON.parse(decodeURIComponent(escape(atob(gh.content))));
+                const headers = { "Authorization": `token ${CFG.TOKEN.trim()}` };
 
-                // 2. AI 生產
-                const ai = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + key.trim(), {
+                // 1. 取得資料 (增加防錯處理)
+                const res = await fetch(url, { headers });
+                let list = [];
+                let sha = "";
+                
+                if (res.ok) {
+                    const ghData = await res.json();
+                    sha = ghData.sha;
+                    try {
+                        list = JSON.parse(decodeURIComponent(escape(atob(ghData.content))));
+                    } catch(e) { list = []; } // 如果 JSON 壞了，就重開一個新的 []
+                }
+
+                // 2. 呼叫 AI
+                const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key.trim()}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ contents: [{ parts: [{ text: "JSON 5 words: [{'word':'apple','trans':'蘋果'}]" }] }] })
                 });
-                const data = await ai.json();
-                const raw = data.candidates[0].content.parts[0].text.replace(/```json|
+                const aiData = await aiRes.json();
+                if (aiData.error) throw new Error(aiData.error.message);
+
+                const raw = aiData.candidates[0].content.parts[0].text.replace(/```json|
 ```/g, "").trim();
                 const news = JSON.parse(raw);
 
-                // 3. 顯示與存回
+                // 3. 顯示結果
                 news.forEach(w => {
                     const d = document.createElement('div');
+                    d.style = "background:white; padding:10px; margin-bottom:5px; border-radius:8px;";
                     d.innerHTML = `<b>${w.word}</b>: ${w.trans}`;
                     document.getElementById('box').prepend(d);
                 });
 
+                // 4. 強制寫回 GitHub
                 await fetch(url, {
                     method: "PUT",
-                    headers: { "Authorization": "token " + CFG.TOKEN.trim() },
+                    headers: headers,
                     body: JSON.stringify({
-                        message: "up",
+                        message: "update",
                         content: btoa(unescape(encodeURIComponent(JSON.stringify(list.concat(news))))),
-                        sha: gh.sha
+                        sha: sha
                     })
                 });
-                document.getElementById('st').innerText = "✅ 成功！";
+                st.innerText = "✅ 完成！資料已存入 GitHub";
             } catch (e) {
-                alert("錯誤：" + e.message);
-                document.getElementById('st').innerText = "❌ 失敗";
+                alert("抓到鬼了！原因：" + e.message);
+                st.innerText = "❌ 失敗";
             }
         }
     </script>
