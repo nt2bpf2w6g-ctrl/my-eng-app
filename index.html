@@ -2,66 +2,52 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>AI 單字機</title>
+    <title>AI 單字生成 (極簡版)</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        .btn { padding: 15px 30px; font-size: 18px; cursor: pointer; background: #2563eb; color: white; border: none; border-radius: 8px; }
+    </style>
 </head>
 <body>
-    <div style="text-align:center; padding:50px; font-family:sans-serif;">
-        <h1 id="st">系統狀態：檢查中...</h1>
-        <button id="btn" style="padding:20px 40px; font-size:20px; cursor:pointer;">1. 生產單字 (點我)</button>
-        <div id="box" style="margin-top:30px;"></div>
-    </div>
+    <h1>🌍 AI 英文單字生成</h1>
+    <h2 id="st">系統已就緒</h2>
+    <button class="btn" onclick="run()">點我開始生成</button>
+    <div id="box" style="margin-top:20px; text-align:left; display:inline-block;"></div>
 
     <script>
-        // 啟動檢查：如果這行沒跑，代表網頁載入就出錯了
-        window.onload = function() { document.getElementById('st').innerText = "✅ 網頁已就緒"; };
-
-        const CFG = {
-            // 請精確填寫，確保引號對齊
-            TOKEN: "ghp_這段有引號" + "這段也有引號", 
-            USER: "nt2bpf2w6g-ctrl",
-            REPO: "my-eng-app"
-        };
-
-        document.getElementById('btn').onclick = async function() {
-            // 第一步：先跳出 API Key 輸入框
-            const key = prompt("2. 請貼上 Google API Key:");
-            if (!key) return;
+        async function run() {
+            // 直接彈出兩個詢問框，把最麻煩的 Key 都手動貼入
+            const ghToken = prompt("1. 請貼上 GitHub Token (ghp_開頭):");
+            if (!ghToken) return;
+            
+            const aiKey = prompt("2. 請貼上 Google API Key (AIza開頭):");
+            if (!aiKey) return;
 
             const st = document.getElementById('st');
             st.innerText = "⏳ 執行中...";
 
             try {
+                const CFG = { USER: "nt2bpf2w6g-ctrl", REPO: "my-eng-app" };
                 const url = `https://api.github.com/repos/${CFG.USER}/${CFG.REPO}/contents/words.json`;
-                const headers = { "Authorization": "token " + CFG.TOKEN.replace(/\s/g, "") };
                 
-                const res = await fetch(url, { headers });
-                if (!res.ok) throw new Error("GitHub 連線失敗，請檢查 Token 或帳號名");
+                // 1. 讀取 GitHub
+                const res = await fetch(url, { headers: { "Authorization": "token " + ghToken.trim() } });
+                if (!res.ok) throw new Error("GitHub Token 錯誤或權限未開");
                 const ghData = await res.json();
-                
-                // --- 【防鬼核心】 ---
-                let list = [];
-                if (ghData.content) {
-                    try {
-                        list = JSON.parse(decodeURIComponent(escape(atob(ghData.content))));
-                    } catch(e) {
-                        list = []; // 如果 JSON 格式壞了，強制設為空陣列
-                    }
-                }
-                // ------------------
+                const list = JSON.parse(decodeURIComponent(escape(atob(ghData.content))));
 
-                const aiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + key.trim(), {
+                // 2. AI 生成
+                const aiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + aiKey.trim(), {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ contents: [{ parts: [{ text: "JSON 5 words: [{'word':'apple','trans':'蘋果'}]" }] }] })
                 });
-                
                 const aiData = await aiRes.json();
-                if (aiData.error) throw new Error("AI 失敗: " + aiData.error.message);
-                
                 const raw = aiData.candidates[0].content.parts[0].text.replace(/```json|
 ```/g, "").trim();
                 const news = JSON.parse(raw);
 
+                // 3. 顯示與存回
                 news.forEach(w => {
                     const d = document.createElement('div');
                     d.innerHTML = `<b>${w.word}</b>: ${w.trans}`;
@@ -70,19 +56,19 @@
 
                 await fetch(url, {
                     method: "PUT",
-                    headers: headers,
+                    headers: { "Authorization": "token " + ghToken.trim() },
                     body: JSON.stringify({
                         message: "update",
                         content: btoa(unescape(encodeURIComponent(JSON.stringify(list.concat(news))))),
                         sha: ghData.sha
                     })
                 });
-                st.innerText = "✅ 完成！資料已同步";
+                st.innerText = "✅ 成功！";
             } catch (e) {
-                alert("報錯了！原因：" + e.message);
+                alert("錯誤：" + e.message);
                 st.innerText = "❌ 失敗";
             }
-        };
+        }
     </script>
 </body>
 </html>
