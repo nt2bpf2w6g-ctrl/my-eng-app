@@ -1,29 +1,28 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 單字生成</title>
 </head>
 <body>
     <div style="text-align:center; padding:50px; font-family:sans-serif;">
         <h1 id="st">系統狀態：就緒 ✅</h1>
-        <button id="btn" style="padding:20px 40px; font-size:20px; background:#2563eb; color:white; border:none; border-radius:10px; cursor:pointer;">開始生產單字</button>
+        <button id="btn" style="padding:20px 40px; font-size:18px; cursor:pointer;">1. 生產單字 (點我)</button>
         <div id="box" style="margin-top:30px; text-align:left; display:inline-block;"></div>
     </div>
 
     <script>
-        // 🛠️ 這裡就是拆開 Token 的地方，請精確填寫
+        // 🛠️ 這裡請精確填寫，不要有多餘符號
         const CFG = {
-            // 把 ghp_ 開頭的一半填在第一個引號，剩下的填在第二個
             TOKEN: "ghp_" + "x3CG2qlPvJSEHYDthMi0ystln6PAgP10mYll", 
             USER: "nt2bpf2w6g-ctrl",
             REPO: "my-eng-app"
         };
 
+        // 監聽按鈕點擊
         document.getElementById('btn').onclick = async function() {
-            // 先跳出詢問框，如果這步沒跳出來，代表代碼語法有錯
-            const key = prompt("請貼上您的 Google API Key (AIza開頭):");
+            // 第一步：先跳出 API Key 輸入框
+            const key = prompt("2. 請貼上 Google API Key (AIza開頭):");
             if (!key) return;
 
             const st = document.getElementById('st');
@@ -32,17 +31,19 @@
             try {
                 // 1. 連線 GitHub 讀取 words.json
                 const url = `https://api.github.com/repos/${CFG.USER}/${CFG.REPO}/contents/words.json`;
-                // 拼接後自動去除可能誤入的空格
                 const headers = { "Authorization": "token " + CFG.TOKEN.replace(/\s/g, "") };
                 
                 const res = await fetch(url, { headers });
-                if (!res.ok) throw new Error("GitHub 連線失敗，請檢查 Token 或帳號大小寫");
+                if (!res.ok) throw new Error("GitHub 連線失敗，請檢查 Token");
                 const ghData = await res.json();
                 
-                // 解析舊單字，如果 words.json 是空的 [] 也沒關係
-                const list = JSON.parse(decodeURIComponent(escape(atob(ghData.content))));
+                // 解析內容，如果 words.json 毀損就重開 []
+                let list = [];
+                try {
+                    list = JSON.parse(decodeURIComponent(escape(atob(ghData.content))));
+                } catch(e) { list = []; }
 
-                // 2. 連線 Google AI
+                // 2. 連線 Google Gemini API
                 const aiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + key.trim(), {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -50,32 +51,33 @@
                 });
                 
                 const aiData = await aiRes.json();
-                if (aiData.error) throw new Error("AI 失敗: " + aiData.error.message);
+                if (aiData.error) throw new Error("AI 金鑰錯誤: " + aiData.error.message);
                 
                 const raw = aiData.candidates[0].content.parts[0].text.replace(/```json|
 ```/g, "").trim();
                 const news = JSON.parse(raw);
 
-                // 3. 顯示並更新回 GitHub
+                // 3. 更新畫面
                 news.forEach(w => {
                     const d = document.createElement('div');
                     d.innerHTML = `<b>${w.word}</b>: ${w.trans}`;
-                    document.getElementById('box').appendChild(d);
+                    document.getElementById('box').prepend(d);
                 });
 
+                // 4. 存回 GitHub
                 await fetch(url, {
                     method: "PUT",
                     headers: headers,
                     body: JSON.stringify({
-                        message: "update words",
+                        message: "update",
                         content: btoa(unescape(encodeURIComponent(JSON.stringify(list.concat(news))))),
                         sha: ghData.sha
                     })
                 });
 
-                st.innerText = "✅ 完成！資料已存入 GitHub";
+                st.innerText = "✅ 完成！資料已同步";
             } catch (e) {
-                alert("抓到鬼了！原因：" + e.message);
+                alert("錯誤原因：" + e.message);
                 st.innerText = "❌ 失敗";
             }
         };
