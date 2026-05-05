@@ -62,31 +62,42 @@
                     list = []; 
                 }
 
-                // 2. 呼叫 Gemini AI
+                // 2. 呼叫 Gemini AI (自動嘗試版本)
                 st.innerText = "🤖 AI 正在生成單字...";
                 
-                // 修正後的網址 (請注意模型名稱格式)
-                const apiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.API_KEY}`;
+                const versions = ["v1", "v1beta"];
+                let aiRes;
+                let lastError = "";
 
-                const aiRes = await fetch(apiURL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [{
-                                text: 'Give me 5 travel English words. Output MUST be a JSON array of objects. Format: [{"word":"hello","def":"a greeting","trans":"你好"}]'
-                            }]
-                        }],
-                        generationConfig: { 
-                            response_mime_type: "application/json" 
+                for (const ver of versions) {
+                    try {
+                        console.log(`嘗試連線版本: ${ver}`);
+                        const apiURL = `https://generativelanguage.googleapis.com/${ver}/models/gemini-1.5-flash:generateContent?key=${CONFIG.API_KEY}`;
+                        
+                        aiRes = await fetch(apiURL, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                contents: [{ parts: [{ text: 'Give me 5 travel English words. Output MUST be a JSON array.' }] }],
+                                generationConfig: { response_mime_type: "application/json" }
+                            })
+                        });
+
+                        if (aiRes.ok) {
+                            console.log(`✅ 版本 ${ver} 連線成功！`);
+                            break; // 成功就跳出迴圈
+                        } else {
+                            const errData = await aiRes.json();
+                            lastError = errData.error ? errData.error.message : "未知錯誤";
+                            console.warn(`❌ 版本 ${ver} 失敗: ${lastError}`);
                         }
-                    })
-                });
+                    } catch (e) {
+                        lastError = e.message;
+                    }
+                }
 
-                if (!aiRes.ok) {
-                    const errorJson = await aiRes.json();
-                    // 如果還是 404，這裡會噴出具體的 Google 報錯原因
-                    throw new Error(`API 錯誤 (${aiRes.status}): ${errorJson.error ? errorJson.error.message : '網址或金鑰無效'}`);
+                if (!aiRes || !aiRes.ok) {
+                    throw new Error(`AI 所有版本連線均失敗。最後一個錯誤: ${lastError}`);
                 }
 
                 const aiData = await aiRes.json();
