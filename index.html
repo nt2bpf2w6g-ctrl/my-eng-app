@@ -1,44 +1,53 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><title>Final Test</title></head>
+<head>
+    <meta charset="UTF-8">
+    <title>AI 單字機</title>
+</head>
 <body>
-    <div style="text-align:center; padding:50px;">
-        <h1 id="st">等待中...</h1>
-        <button id="btn" style="padding:20px; font-size:20px;">點我測試 (按鈕)</button>
-        <div id="box"></div>
+    <div style="text-align:center; padding:50px; font-family:sans-serif;">
+        <h1 id="st">系統狀態：檢查中...</h1>
+        <button id="btn" style="padding:20px 40px; font-size:20px; cursor:pointer;">1. 生產單字 (點我)</button>
+        <div id="box" style="margin-top:30px;"></div>
     </div>
+
     <script>
-        // 這是測試，確保按鈕本身沒死
-        window.onload = function() { document.getElementById('st').innerText = "✅ 網頁已載入"; };
+        // 啟動檢查：如果這行沒跑，代表網頁載入就出錯了
+        window.onload = function() { document.getElementById('st').innerText = "✅ 網頁已就緒"; };
 
         const CFG = {
-            TOKEN: "ghp_msAqswMA0ZdjG" + "HCq0WaOnhbgKOgsib0xXaaX", 
+            // 請精確填寫，確保引號對齊
+            TOKEN: "ghp_這段有引號" + "這段也有引號", 
             USER: "nt2bpf2w6g-ctrl",
             REPO: "my-eng-app"
         };
 
         document.getElementById('btn').onclick = async function() {
-            // 如果點了沒跳出這個框，代表代碼貼上的時候又被弄壞了
-            const key = prompt("1. 請輸入 API Key:");
+            // 第一步：先跳出 API Key 輸入框
+            const key = prompt("2. 請貼上 Google API Key:");
             if (!key) return;
 
-            document.getElementById('st').innerText = "⏳ 執行中...";
+            const st = document.getElementById('st');
+            st.innerText = "⏳ 執行中...";
+
             try {
                 const url = `https://api.github.com/repos/${CFG.USER}/${CFG.REPO}/contents/words.json`;
                 const headers = { "Authorization": "token " + CFG.TOKEN.replace(/\s/g, "") };
                 
                 const res = await fetch(url, { headers });
-                if (!res.ok) throw new Error("GitHub 連線失敗，代碼：" + res.status);
-                
+                if (!res.ok) throw new Error("GitHub 連線失敗，請檢查 Token 或帳號名");
                 const ghData = await res.json();
-                // 這裡最關鍵：如果內容是空的，強制設為 []
-                let content = "";
-                try {
-                    content = atob(ghData.content);
-                } catch(e) {
-                    content = "[]"; 
+                
+                // --- 【防鬼核心】 ---
+                let list = [];
+                if (ghData.content) {
+                    try {
+                        list = JSON.parse(decodeURIComponent(escape(atob(ghData.content))));
+                    } catch(e) {
+                        list = []; // 如果 JSON 格式壞了，強制設為空陣列
+                    }
                 }
-                const list = JSON.parse(decodeURIComponent(escape(content)) || "[]");
+                // ------------------
 
                 const aiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + key.trim(), {
                     method: "POST",
@@ -47,6 +56,8 @@
                 });
                 
                 const aiData = await aiRes.json();
+                if (aiData.error) throw new Error("AI 失敗: " + aiData.error.message);
+                
                 const raw = aiData.candidates[0].content.parts[0].text.replace(/```json|
 ```/g, "").trim();
                 const news = JSON.parse(raw);
@@ -66,10 +77,10 @@
                         sha: ghData.sha
                     })
                 });
-                document.getElementById('st').innerText = "✅ 成功！";
+                st.innerText = "✅ 完成！資料已同步";
             } catch (e) {
-                alert("抓到錯誤：" + e.message);
-                document.getElementById('st').innerText = "❌ 失敗";
+                alert("報錯了！原因：" + e.message);
+                st.innerText = "❌ 失敗";
             }
         };
     </script>
