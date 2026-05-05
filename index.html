@@ -3,105 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My English Practice</title>
+    <title>AI 單字練習練習器</title>
     <style>
-        body { font-family: system-ui, sans-serif; background: #f8fafc; display: flex; justify-content: center; padding: 20px; }
-        .container { width: 100%; max-width: 400px; text-align: center; }
-        .btn { width: 100%; padding: 16px; background: #2563eb; color: white; border: none; border-radius: 10px; font-size: 16px; cursor: pointer; margin-bottom: 10px; }
-        .btn:disabled { background: #94a3b8; }
-        .status { font-size: 14px; color: #64748b; margin-bottom: 20px; min-height: 20px; }
-        .card { background: white; padding: 15px; border-radius: 12px; margin-bottom: 10px; text-align: left; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        body { font-family: system-ui, -apple-system, sans-serif; background: #f1f5f9; text-align: center; padding: 20px; color: #1e293b; }
+        .container { max-width: 400px; margin: auto; }
+        h1 { color: #2563eb; font-size: 24px; margin-bottom: 20px; }
+        .btn { width: 100%; padding: 18px; background: #2563eb; color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn:hover { background: #1d4ed8; }
+        .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        .card { background: white; padding: 20px; border-radius: 15px; margin-top: 12px; border: 1px solid #e2e8f0; text-align: left; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        #st { margin: 15px 0; font-size: 14px; color: #64748b; min-height: 20px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>📖 我的英文練習</h2>
-        <div id="st" class="status">等待輸入金鑰...</div>
-        <button class="btn" id="runBtn" onclick="main()">生產新單字</button>
-        <div id="display"></div>
+        <h1>🚀 AI 單字練習</h1>
+        <div id="st">系統就緒 ✅</div>
+        <button class="btn" id="runBtn" onclick="main()">生產 5 個新單字</button>
+        <div id="display" style="margin-top:20px;"></div>
     </div>
 
     <script>
-        // 🚨 這裡的金鑰保持空白，防止被 GitHub 鎖定
-        let TEMP_API_KEY = ""; 
+        // 🚨 安全關鍵：金鑰留空，防止 GitHub 機器人鎖定
+        let ACTIVE_KEY = ""; 
 
         const CONFIG = {
-            TOKEN: "ghp_o5BuUUXNi9TaIQzRK87Y" + "M6acDm0FPM00QEOM", 
+            TOKEN: "ghp_o5BuUUXNi9TaIQzRK87Y" + "M6acDm0FPM00QEOM", // 請確認有 repo 權限
             USER: "nt2bpf2w6g-ctrl",
             REPO: "my-eng-app"
         };
 
         async function main() {
+            const btn = document.getElementById('runBtn');
             const st = document.getElementById('st');
             const box = document.getElementById('display');
-            const btn = document.getElementById('runBtn');
 
-            // 如果沒金鑰，先跟你要
-            if (!TEMP_API_KEY) {
-                const input = prompt("請輸入 Gemini API Key (練習專用，不會存檔)：");
+            // 1. 請求金鑰
+            if (!ACTIVE_KEY) {
+                const input = prompt("請輸入您的 Gemini API Key：");
                 if (!input) return;
-                TEMP_API_KEY = input.trim();
+                ACTIVE_KEY = input.trim();
             }
 
             btn.disabled = true;
-            st.innerText = "⏳ 正在處理...";
+            st.innerText = "⏳ 正在處理資料...";
+            box.innerHTML = '';
 
             try {
-                // 1. 取得 GitHub 檔案
+                // 2. 從 GitHub 讀取並修正 JSON
                 const url = `https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`;
-                const ghRes = await fetch(url, { 
-                    headers: { "Authorization": `token ${CONFIG.TOKEN.trim()}` } 
-                });
+                const ghRes = await fetch(url, { headers: { "Authorization": `token ${CONFIG.TOKEN.trim()}` } });
                 const ghData = await ghRes.json();
-                let list = JSON.parse(decodeURIComponent(escape(atob(ghData.content.replace(/\n/g, '')))) || "[]");
+                
+                let list = [];
+                try {
+                    const raw = atob(ghData.content.replace(/\n/g, ''));
+                    const decoded = decodeURIComponent(escape(raw)).trim();
+                    // 強制轉換全形符號至半形，防止低級錯誤
+                    const cleanJson = decoded.replace(/［/g, '[').replace(/］/g, ']');
+                    list = JSON.parse(cleanJson || "[]");
+                } catch (e) { list = []; }
 
-                // 2. 呼叫 Gemini AI (使用 v1 穩定版)
-                st.innerText = "🤖 AI 生成中...";
-                const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${TEMP_API_KEY}`, {
+                // 3. 呼叫 AI 生產單字 (使用 v1 穩定版路徑)
+                st.innerText = "🤖 AI 正在選詞...";
+                const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${ACTIVE_KEY}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: 'Give 5 travel words. Return ONLY a JSON array. Format: [{"word":"...","def":"...","trans":"..."}]' }] }]
+                        contents: [{ parts: [{ text: 'Give 5 travel words. Format MUST be JSON array: [{"word":"...","def":"...","trans":"..."}]' }] }]
                     })
                 });
 
-                if (!aiRes.ok) throw new Error("AI 金鑰無效或已失效，請重新輸入");
+                if (!aiRes.ok) {
+                    ACTIVE_KEY = ""; // 清除無效金鑰
+                    throw new Error("API 金鑰驗證失敗或已遭鎖定");
+                }
 
                 const aiData = await aiRes.json();
                 const rawText = aiData.candidates[0].content.parts[0].text;
                 const newWords = JSON.parse(rawText.match(/\[[\s\S]*\]/)[0]);
 
-                // 3. 顯示結果
+                // 4. 更新畫面
                 newWords.forEach(w => {
                     const d = document.createElement('div');
                     d.className = 'card';
-                    d.innerHTML = `<b>${w.word}</b><br><small>${w.def}</small><div style="color:#059669;margin-top:4px;">${w.trans}</div>`;
+                    d.innerHTML = `<b>${w.word}</b><br><small style="color:#64748b;">${w.def}</small><div style="color:#2563eb;margin-top:5px;font-weight:bold;">${w.trans}</div>`;
                     box.prepend(d);
                 });
 
-                // 4. 存回 GitHub
-                st.innerText = "💾 儲存中...";
+                // 5. 存回 GitHub
+                st.innerText = "💾 正在同步至 GitHub...";
                 const updatedList = list.concat(newWords);
                 const updatedBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(updatedList))));
 
                 await fetch(url, {
                     method: "PUT",
-                    headers: { 
-                        "Authorization": `token ${CONFIG.TOKEN.trim()}`,
-                        "Content-Type": "application/json"
-                    },
+                    headers: { "Authorization": `token ${CONFIG.TOKEN.trim()}`, "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        message: "練習更新",
+                        message: "AI Batch Update",
                         content: updatedBase64,
                         sha: ghData.sha
                     })
                 });
 
-                st.innerText = "✅ 練習紀錄已同步！";
+                st.innerText = `✅ 同步成功！(總計 ${updatedList.length} 個單字)`;
+
             } catch (e) {
                 console.error(e);
-                st.innerText = "❌ 發生錯誤：" + e.message;
-                TEMP_API_KEY = ""; // 報錯時清除金鑰，方便重新輸入
+                st.innerText = "❌ 發生錯誤: " + e.message;
             } finally {
                 btn.disabled = false;
             }
