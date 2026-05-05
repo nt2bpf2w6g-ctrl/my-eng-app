@@ -1,49 +1,45 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <meta charset="UTF-8">
-    <title>AI 單字生成</title>
-</head>
+<head><meta charset="UTF-8"><title>Final Test</title></head>
 <body>
-    <div style="text-align:center; padding:50px; font-family:sans-serif;">
-        <h1 id="st">系統狀態：就緒 ✅</h1>
-        <button id="btn" style="padding:20px 40px; font-size:18px; cursor:pointer;">1. 生產單字 (點我)</button>
-        <div id="box" style="margin-top:30px; text-align:left; display:inline-block;"></div>
+    <div style="text-align:center; padding:50px;">
+        <h1 id="st">等待中...</h1>
+        <button id="btn" style="padding:20px; font-size:20px;">點我測試 (按鈕)</button>
+        <div id="box"></div>
     </div>
-
     <script>
-        // 🛠️ 這裡請精確填寫，不要有多餘符號
+        // 這是測試，確保按鈕本身沒死
+        window.onload = function() { document.getElementById('st').innerText = "✅ 網頁已載入"; };
+
         const CFG = {
-            TOKEN: "ghp_" + "x3CG2qlPvJSEHYDthMi0ystln6PAgP10mYll", 
+            TOKEN: "ghp" + "x3CG2qlPvJSEHYDthMi0ystln6PAgP10mYll", 
             USER: "nt2bpf2w6g-ctrl",
             REPO: "my-eng-app"
         };
 
-        // 監聽按鈕點擊
         document.getElementById('btn').onclick = async function() {
-            // 第一步：先跳出 API Key 輸入框
-            const key = prompt("2. 請貼上 Google API Key (AIza開頭):");
+            // 如果點了沒跳出這個框，代表代碼貼上的時候又被弄壞了
+            const key = prompt("1. 請輸入 API Key:");
             if (!key) return;
 
-            const st = document.getElementById('st');
-            st.innerText = "⏳ 執行中...";
-
+            document.getElementById('st').innerText = "⏳ 執行中...";
             try {
-                // 1. 連線 GitHub 讀取 words.json
                 const url = `https://api.github.com/repos/${CFG.USER}/${CFG.REPO}/contents/words.json`;
                 const headers = { "Authorization": "token " + CFG.TOKEN.replace(/\s/g, "") };
                 
                 const res = await fetch(url, { headers });
-                if (!res.ok) throw new Error("GitHub 連線失敗，請檢查 Token");
-                const ghData = await res.json();
+                if (!res.ok) throw new Error("GitHub 連線失敗，代碼：" + res.status);
                 
-                // 解析內容，如果 words.json 毀損就重開 []
-                let list = [];
+                const ghData = await res.json();
+                // 這裡最關鍵：如果內容是空的，強制設為 []
+                let content = "";
                 try {
-                    list = JSON.parse(decodeURIComponent(escape(atob(ghData.content))));
-                } catch(e) { list = []; }
+                    content = atob(ghData.content);
+                } catch(e) {
+                    content = "[]"; 
+                }
+                const list = JSON.parse(decodeURIComponent(escape(content)) || "[]");
 
-                // 2. 連線 Google Gemini API
                 const aiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + key.trim(), {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -51,20 +47,16 @@
                 });
                 
                 const aiData = await aiRes.json();
-                if (aiData.error) throw new Error("AI 金鑰錯誤: " + aiData.error.message);
-                
                 const raw = aiData.candidates[0].content.parts[0].text.replace(/```json|
 ```/g, "").trim();
                 const news = JSON.parse(raw);
 
-                // 3. 更新畫面
                 news.forEach(w => {
                     const d = document.createElement('div');
                     d.innerHTML = `<b>${w.word}</b>: ${w.trans}`;
                     document.getElementById('box').prepend(d);
                 });
 
-                // 4. 存回 GitHub
                 await fetch(url, {
                     method: "PUT",
                     headers: headers,
@@ -74,11 +66,10 @@
                         sha: ghData.sha
                     })
                 });
-
-                st.innerText = "✅ 完成！資料已同步";
+                document.getElementById('st').innerText = "✅ 成功！";
             } catch (e) {
-                alert("錯誤原因：" + e.message);
-                st.innerText = "❌ 失敗";
+                alert("抓到錯誤：" + e.message);
+                document.getElementById('st').innerText = "❌ 失敗";
             }
         };
     </script>
