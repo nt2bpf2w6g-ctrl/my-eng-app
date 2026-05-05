@@ -9,6 +9,7 @@
         .container { width: 100%; max-width: 400px; text-align: center; }
         h1 { color: #2563eb; margin-bottom: 5px; }
         .btn { width: 100%; padding: 18px; background: #2563eb; color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn:hover { background: #1d4ed8; }
         .btn:disabled { background: #cbd5e1; cursor: not-allowed; }
         .card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 12px; border: 1px solid #e2e8f0; text-align: left; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         #st { margin: 10px 0; font-size: 14px; color: #64748b; min-height: 20px; }
@@ -23,12 +24,12 @@
     </div>
 
     <script>
-        // 🚨 請務必確實填寫以下資訊
+        // 🚨 請在此更新你的正確資訊
         const CONFIG = {
-            API_KEY:"AIzaSyCrs6Oq0J1oCe5PuEfIBm_eLdpn3iSWdbc",
-            TOKEN:"ghp_o5BuUUXNi9TaIQzRK87Y" + "M6acDm0FPM00QEOM",
-            USER:"nt2bpf2w6g-ctrl",
-            REPO:"my-eng-app"
+            API_KEY: "AIzaSyDArmPvsfmuK4HkVjeSLfMClZqXOqM6uEU", 
+            TOKEN: "ghp_o5BuUUXNi9TaIQzRK87Y" + "M6acDm0FPM00QEOM",  
+            USER: "nt2bpf2w6g-ctrl",
+            REPO: "my-eng-app"
         };
 
         async function main() {
@@ -36,74 +37,68 @@
             const st = document.getElementById('st');
             const box = document.getElementById('display');
 
-            // 初始化狀態
             btn.disabled = true;
-            btn.innerText = "⏳ 處理中...";
             st.innerText = "📡 正在連線 GitHub...";
             box.innerHTML = '';
 
             try {
-                // 1. 取得 GitHub 檔案內容
+                // 1. 取得 GitHub 檔案
                 const url = `https://api.github.com/repos/${CONFIG.USER}/${CONFIG.REPO}/contents/words.json`;
                 const ghRes = await fetch(url, { 
                     headers: { "Authorization": `token ${CONFIG.TOKEN.trim()}` } 
                 });
 
-                if (!ghRes.ok) throw new Error("GitHub 連線失敗，請檢查 Token 或 Repo 名稱");
+                if (!ghRes.ok) throw new Error("GitHub 連線失敗，請檢查 Token 或路徑");
 
                 const ghData = await ghRes.json();
                 let list = [];
-                
-                // 解析現有單字清單，若檔案為空則設為空陣列
                 try {
                     const content = decodeURIComponent(escape(atob(ghData.content.replace(/\n/g, ''))));
                     list = JSON.parse(content || "[]");
-                } catch (e) {
-                    list = []; 
-                }
+                } catch (e) { list = []; }
 
-                // 2. 呼叫 Gemini AI (自動嘗試版本)
+                // 2. 呼叫 Gemini AI (多版本兼容邏輯)
                 st.innerText = "🤖 AI 正在生成單字...";
                 
-                const versions = ["v1", "v1beta"];
-                let aiRes;
+                // 嘗試不同版本與參數組合
+                const configs = [
+                    { ver: "v1", mimeKey: "responseMimeType" },
+                    { ver: "v1beta", mimeKey: "response_mime_type" }
+                ];
+                
+                let aiRes, aiData;
                 let lastError = "";
 
-                for (const ver of versions) {
+                for (const conf of configs) {
                     try {
-                        console.log(`嘗試連線版本: ${ver}`);
-                        const apiURL = `https://generativelanguage.googleapis.com/${ver}/models/gemini-1.5-flash:generateContent?key=${CONFIG.API_KEY}`;
-                        
+                        const apiURL = `https://generativelanguage.googleapis.com/${conf.ver}/models/gemini-1.5-flash:generateContent?key=${CONFIG.API_KEY}`;
+                        const payload = {
+                            contents: [{ parts: [{ text: 'Give 5 travel words. Output MUST be a JSON array: [{"word":"hello","def":"a greeting","trans":"你好"}]' }] }],
+                            generationConfig: {}
+                        };
+                        // 動態設定該版本支援的 MimeType 欄位
+                        payload.generationConfig[conf.mimeKey] = "application/json";
+
                         aiRes = await fetch(apiURL, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                                contents: [{ parts: [{ text: 'Give me 5 travel English words. Output MUST be a JSON array.' }] }],
-                                generationConfig: { response_mime_type: "application/json" }
-                            })
+                            body: JSON.stringify(payload)
                         });
 
                         if (aiRes.ok) {
-                            console.log(`✅ 版本 ${ver} 連線成功！`);
-                            break; // 成功就跳出迴圈
+                            aiData = await aiRes.json();
+                            break; 
                         } else {
-                            const errData = await aiRes.json();
-                            lastError = errData.error ? errData.error.message : "未知錯誤";
-                            console.warn(`❌ 版本 ${ver} 失敗: ${lastError}`);
+                            const err = await aiRes.json();
+                            lastError = err.error ? err.error.message : "未知錯誤";
                         }
-                    } catch (e) {
-                        lastError = e.message;
-                    }
+                    } catch (e) { lastError = e.message; }
                 }
 
-                if (!aiRes || !aiRes.ok) {
-                    throw new Error(`AI 所有版本連線均失敗。最後一個錯誤: ${lastError}`);
-                }
+                if (!aiData) throw new Error(`AI 生成失敗: ${lastError}`);
 
-                const aiData = await aiRes.json();
+                // 3. 解析與顯示
                 const newWords = JSON.parse(aiData.candidates[0].content.parts[0].text);
-
-                // 3. 渲染新單字到畫面上
                 newWords.forEach(w => {
                     const d = document.createElement('div');
                     d.className = 'card';
@@ -111,8 +106,8 @@
                     box.prepend(d);
                 });
 
-                // 4. 存回 GitHub
-                st.innerText = "💾 正在同步到 GitHub...";
+                // 4. 同步回 GitHub
+                st.innerText = "💾 正在存回雲端...";
                 const updatedList = list.concat(newWords);
                 const updatedBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(updatedList))));
 
@@ -123,14 +118,13 @@
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        message: "AI generated new words",
+                        message: "update words",
                         content: updatedBase64,
                         sha: ghData.sha
                     })
                 });
 
-                if (!putRes.ok) throw new Error("同步到 GitHub 失敗");
-
+                if (!putRes.ok) throw new Error("存回 GitHub 失敗");
                 st.innerText = `✅ 完成！總共 ${updatedList.length} 個單字`;
 
             } catch (e) {
@@ -138,7 +132,6 @@
                 st.innerText = `❌ 錯誤: ${e.message}`;
             } finally {
                 btn.disabled = false;
-                btn.innerText = "生產 5 個新單字";
             }
         }
     </script>
